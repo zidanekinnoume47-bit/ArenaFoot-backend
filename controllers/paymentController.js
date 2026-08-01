@@ -107,7 +107,7 @@ iso:"XOF"
 },
 
 
-callback_url:"http://localhost:5173/payment-success",
+callback_url:"https://arenafoot-backend-production.up.railway.app/payment-success",
 
 
 

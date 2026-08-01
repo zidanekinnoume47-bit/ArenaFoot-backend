@@ -34,12 +34,13 @@ exports.getTournaments = (req,res)=>{
 
     Tournament.getAll((err,result)=>{
 
-        if(err){
+       if (err) {
+            console.log("ERREUR SQL :", err);
 
             return res.status(500).json({
-                message:"Erreur lors du chargement des tournois"
+                message: "Erreur lors du chargement des tournois",
+                error: err.message
             });
-
         }
 
         res.json(result);
