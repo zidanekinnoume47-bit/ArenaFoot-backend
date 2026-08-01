@@ -1,4 +1,4 @@
-const Match = require("../models/match");
+const Match = require("../models/Match");
 const db = require("../config/database");
 const Reward = require("../models/Reward");
 

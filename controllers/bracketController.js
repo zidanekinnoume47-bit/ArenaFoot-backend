@@ -1,5 +1,5 @@
 const db = require("../config/database");
-const Match = require("../models/match.js");
+const Match = require("../models/Match.js");
 
 
 // ==================================
