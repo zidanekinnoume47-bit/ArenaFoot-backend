@@ -69,7 +69,7 @@ MatchController.generateMatches(req,res);
 
 exports.createPayment = async (req,res)=>{
 
-
+ console.log("BODY PAYMENT :", req.body);
 const data = req.body;
 
 
@@ -93,6 +93,7 @@ message:"Vous devez avoir un compte ArenaFoot pour participer"
 
 }
 
+console.log("Création paiement...");
 
 
 try{
@@ -200,18 +201,11 @@ payment_id:result.insertId
 
 }catch(error){
 
+    console.log("ERREUR COMPLETE FedaPay :", error);
 
-console.log("Erreur FedaPay :",error);
-
-
-res.status(500).json({
-
-message:"Erreur création paiement",
-
-error:error.message
-
-});
-
+    return res.status(500).json({
+        message: error.message
+    });
 
 }
 
