@@ -38,30 +38,19 @@ res.json(result);
 
 // Voir les tournois
 
-exports.tournaments=(req,res)=>{
+exports.tournaments = (req, res) => {
 
+    db.query("SELECT * FROM tournaments", (err, result) => {
 
-db.query(
+        console.log("TOURNOIS :", result);
 
-"SELECT * FROM tournaments",
+        if (err) {
+            console.log(err);
+            return res.status(500).json(err);
+        }
 
-(err,result)=>{
-
-
-if(err){
-
-return res.status(500).json(err);
-
-}
-
-
-res.json(result);
-
-
-}
-
-);
-
+        res.json(result);
+    });
 
 };
 
