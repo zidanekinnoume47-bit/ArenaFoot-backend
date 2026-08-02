@@ -76,7 +76,8 @@ const data = req.body;
 const userId = data.user_id || data.player_id;
 
 if(
-!userId ||
+!data.player_id ||
+!data.user_id ||
 !data.tournament_id ||
 !data.amount
 ){
