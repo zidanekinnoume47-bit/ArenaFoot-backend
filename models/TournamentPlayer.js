@@ -112,7 +112,7 @@ getPlayerTournaments:(player_id, callback)=>{
 
 const sql = `
 
-SELECT 
+SELECT
 tournaments.*,
 tournament_players.payment_status
 
@@ -123,14 +123,12 @@ JOIN tournament_players
 ON tournaments.id = tournament_players.tournament_id
 
 WHERE tournament_players.player_id = ?
-OR tournament_players.user_id = ?
 
 `;
 
 db.query(
 sql,
 [
-player_id,
 player_id
 ],
 callback
