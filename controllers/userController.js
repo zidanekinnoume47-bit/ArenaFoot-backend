@@ -20,11 +20,14 @@ data.password = hash;
 User.create(data,(err,result)=>{
 
 
-if(err){
+if (err) {
 
-return res.status(500).json({
-message:"Erreur création compte"
-});
+    console.log("ERREUR INSCRIPTION :", err);
+
+    return res.status(500).json({
+        message: "Erreur création compte",
+        error: err
+    });
 
 }
 

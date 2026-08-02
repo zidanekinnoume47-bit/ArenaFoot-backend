@@ -9,9 +9,6 @@ const db = mysql.createPool({
     database: process.env.MYSQLDATABASE,
     port: process.env.MYSQLPORT,
 
-    ssl: {
-        rejectUnauthorized: false
-    }
 });
 
 db.getConnection((err, connection) => {
