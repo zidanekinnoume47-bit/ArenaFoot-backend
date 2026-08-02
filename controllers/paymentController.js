@@ -200,9 +200,12 @@ payment_id:result.insertId
 
 
 
-}catch(error){
+}catch (error) {
 
-    console.log("ERREUR COMPLETE FedaPay :", error);
+    console.log("ERREUR FedaPay COMPLETE :");
+    console.log(error.response?.data);
+    console.log(error.message);
+    console.log(error);
 
     return res.status(500).json({
         message: error.message
