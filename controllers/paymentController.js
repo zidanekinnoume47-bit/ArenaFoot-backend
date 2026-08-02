@@ -73,13 +73,17 @@ exports.createPayment = async (req,res)=>{
 const data = req.body;
 
 
+const userId = data.user_id || data.player_id;
 
 if(
-!data.player_id ||
-!data.user_id ||
+!userId ||
 !data.tournament_id ||
 !data.amount
 ){
+    return res.status(400).json({
+        message:"Vous devez avoir un compte ArenaFoot pour participer"
+    });
+}{
 
 return res.status(400).json({
 
