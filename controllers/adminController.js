@@ -441,3 +441,79 @@ exports.deletePlayer = (req, res) => {
     );
 
 };
+
+
+
+exports.deleteTournament = (req, res) => {
+
+    const id = req.params.id;
+
+    db.query(
+        "DELETE FROM tournament_players WHERE tournament_id = ?",
+        [id],
+        (err) => {
+
+            if (err) return res.status(500).json(err);
+
+            db.query(
+                "DELETE FROM matches WHERE tournament_id = ?",
+                [id],
+                (err) => {
+
+                    if (err) return res.status(500).json(err);
+
+                    db.query(
+                        "DELETE FROM tournaments WHERE id = ?",
+                        [id],
+                        (err) => {
+
+                            if (err) return res.status(500).json(err);
+
+                            res.json({
+                                message: "Tournoi supprimé avec succès"
+                            });
+
+                        }
+                    );
+
+                }
+            );
+
+        }
+    );
+
+};
+
+
+
+exports.getTournamentPlayers = (req, res) => {
+
+    const tournament_id = req.params.id;
+
+    const sql = `
+    SELECT
+        users.id,
+        users.name,
+        users.pseudo,
+        users.phone,
+        tournament_players.payment_status
+
+    FROM tournament_players
+
+    JOIN users
+    ON tournament_players.player_id = users.id
+
+    WHERE tournament_players.tournament_id = ?
+    `;
+
+    db.query(sql, [tournament_id], (err, result) => {
+
+        if (err) {
+            return res.status(500).json(err);
+        }
+
+        res.json(result);
+
+    });
+
+};

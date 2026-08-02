@@ -52,6 +52,18 @@ router.put(
 );
 
 router.delete(
+    "/tournament/:id",
+    adminAuth,
+    adminController.deleteTournament
+);
+
+router.get(
+    "/tournament/:id/players",
+    adminAuth,
+    adminController.getTournamentPlayers
+);
+
+router.delete(
     "/player/:id",
     adminAuth,
     adminController.deletePlayer
