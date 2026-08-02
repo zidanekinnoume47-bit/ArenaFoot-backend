@@ -333,13 +333,12 @@ TournamentPlayer.getPlayerTournaments(
 player_id,
 (err,result)=>{
 
+if (err) {
 
-if(err){
+    console.log("ERREUR SQL :", err);
 
     return res.status(500).json({
-
-        message:"Erreur chargement tournois joueur"
-
+        message: err.message
     });
 
 }

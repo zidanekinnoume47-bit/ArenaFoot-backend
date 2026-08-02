@@ -25,7 +25,7 @@ try{
 const user =
 jwt.verify(
 token,
-"ARENAFOOT_SECRET"
+process.env.JWT_SECRET
 );
 
 

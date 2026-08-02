@@ -167,7 +167,7 @@ email:user.email,
 role:user.role
 },
 
-"ARENAFOOT_SECRET",
+process.env.JWT_SECRET,
 
 {
 expiresIn:"24h"
