@@ -38,8 +38,6 @@ adminAuth,
 adminController.validatePayment
 );
 
-
-
 // Création temporaire de joueurs de test
 router.post(
 "/test-players/:id",
@@ -47,6 +45,16 @@ adminAuth,
 adminController.createTestPlayers
 );
 
+router.put(
+    "/ban/:id",
+    adminAuth,
+    adminController.banPlayer
+);
 
+router.delete(
+    "/player/:id",
+    adminAuth,
+    adminController.deletePlayer
+);
 
 module.exports = router;

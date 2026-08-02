@@ -354,3 +354,90 @@ exports.getPlayer = (req, res) => {
     });
 
 };
+
+
+exports.banPlayer = (req, res) => {
+
+    const id = req.params.id;
+
+    db.query(
+        `
+        UPDATE users
+        SET status = 'banned'
+        WHERE id = ?
+        `,
+        [id],
+        (err) => {
+
+            if (err) {
+                return res.status(500).json(err);
+            }
+
+            res.json({
+                message: "Joueur banni avec succès"
+            });
+
+        }
+    );
+
+};
+
+
+
+exports.deletePlayer = (req, res) => {
+
+    const id = req.params.id;
+
+    db.query(
+        "SELECT role FROM users WHERE id = ?",
+        [id],
+        (err, result) => {
+
+            if (err) {
+                return res.status(500).json(err);
+            }
+
+            if (result.length === 0) {
+                return res.status(404).json({
+                    message: "Joueur introuvable"
+                });
+            }
+
+            if (result[0].role === "admin") {
+                return res.status(400).json({
+                    message: "Impossible de supprimer un administrateur."
+                });
+            }
+
+            db.query(
+                "DELETE FROM tournament_players WHERE player_id = ?",
+                [id],
+                (err) => {
+
+                    if (err) {
+                        return res.status(500).json(err);
+                    }
+
+                    db.query(
+                        "DELETE FROM users WHERE id = ?",
+                        [id],
+                        (err) => {
+
+                            if (err) {
+                                return res.status(500).json(err);
+                            }
+
+                            res.json({
+                                message: "Joueur supprimé avec succès"
+                            });
+
+                        }
+                    );
+
+                }
+            );
+
+        }
+    );
+
+};
