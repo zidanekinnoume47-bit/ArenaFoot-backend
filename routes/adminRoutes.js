@@ -18,7 +18,11 @@ adminAuth,
 adminController.players
 );
 
-
+router.get(
+    "/player/:id",
+    adminAuth,
+    adminController.getPlayer
+);
 
 router.get(
 "/tournaments",

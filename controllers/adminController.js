@@ -10,9 +10,7 @@ exports.players=(req,res)=>{
 
 
 db.query(
-
-"SELECT id,name,pseudo,email,role FROM users",
-
+"SELECT id,name,pseudo,email,phone,role FROM users",
 (err,result)=>{
 
 
@@ -293,5 +291,66 @@ message:"15 joueurs de test ajoutés avec paiement validé 🏆"
 }
 
 
+
+};
+
+
+// Voir un joueur
+exports.getPlayer = (req, res) => {
+
+    const id = req.params.id;
+
+    const sql = `
+
+    SELECT
+        u.id,
+        u.name,
+        u.pseudo,
+        u.email,
+        u.phone,
+        u.efootball_id,
+        u.role,
+
+        (
+            SELECT COUNT(*)
+            FROM tournament_players
+            WHERE player_id = u.id
+        ) AS tournaments,
+
+        (
+            SELECT COUNT(*)
+            FROM matches
+            WHERE player_one = u.id
+            OR player_two = u.id
+        ) AS matches,
+
+        (
+            SELECT COUNT(*)
+            FROM matches
+            WHERE winner = u.id
+        ) AS wins
+
+    FROM users u
+
+    WHERE u.id = ?
+
+    `;
+
+    db.query(sql, [id], (err, result) => {
+
+        if (err) {
+            console.log(err);
+            return res.status(500).json(err);
+        }
+
+        if (result.length === 0) {
+            return res.status(404).json({
+                message: "Joueur introuvable"
+            });
+        }
+
+        res.json(result[0]);
+
+    });
 
 };
