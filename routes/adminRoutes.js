@@ -9,6 +9,9 @@ require("../controllers/adminController");
 const adminAuth =
 require("../middleware/adminAuth");
 
+const rewardController = require("../controllers/rewardController");
+
+
 console.log("ADMIN CONTROLLER :", adminController);
 console.log("ADMIN AUTH :", adminAuth);
 
@@ -73,6 +76,12 @@ router.get(
     "/rewards",
     adminAuth,
     adminController.getRewards
+);
+
+router.put(
+    "/reward/:id",
+    adminAuth,
+    rewardController.sendReward
 );
 
 module.exports = router;
