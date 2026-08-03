@@ -75,8 +75,6 @@ const data = req.body;
 
 const userId = data.user_id || data.player_id;
 
-const data = req.body;
-
 console.log("BODY PAYMENT :", data);
 
 const userId = data.user_id || data.player_id;
