@@ -11,6 +11,10 @@ router.post(
   matchController.generateMatches
 );
 
+router.get(
+  "/generate/:id",
+  matchController.generateMatches
+);
 
 // Récupérer les matchs d'un tournoi
 router.get(
