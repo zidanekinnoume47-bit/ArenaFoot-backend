@@ -19,7 +19,6 @@ app.use(rateLimit({
 
 app.use(express.json());
 
-
 // =======================
 // Routes
 // =======================
@@ -44,7 +43,6 @@ console.log("rewardRoutes :", typeof rewardRoutes);
 console.log("mobilePaymentRoutes :", typeof mobilePaymentRoutes);
 console.log("bracketRoutes :", typeof bracketRoutes);
 
-
 // =======================
 // Accueil API
 // =======================
@@ -55,7 +53,6 @@ app.get("/", (req, res) => {
     });
 });
 
-
 // =======================
 // Retour FedaPay
 // =======================
@@ -64,13 +61,13 @@ app.get("/payment-success", (req, res) => {
 
     console.log("Retour FedaPay :", req.query);
 
-    // Redirection vers le frontend
-    res.redirect("http://localhost:5173/dashboard");
+    const { status, id } = req.query;
 
-    // Si tu testes uniquement en local, remplace par :
-    // res.redirect("http://localhost:5173/dashboard");
+    res.redirect(
+        `http://localhost:5173/dashboard?status=${status}&transaction=${id}`
+    );
+
 });
-
 
 // =======================
 // Routes API
@@ -102,7 +99,6 @@ app.use("/api/mobile-payment", mobilePaymentRoutes);
 
 console.log("CHARGEMENT BRACKET");
 app.use("/api/bracket", bracketRoutes);
-
 
 const PORT = process.env.PORT || 5000;
 
