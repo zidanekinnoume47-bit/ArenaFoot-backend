@@ -622,7 +622,8 @@ message:"Match introuvable"
 
 const match = result[0];
 
-
+console.log("MATCH :", match);
+console.log("NEXT MATCH ID :", match.next_match_id);
 
 
 // Mise à jour du match
