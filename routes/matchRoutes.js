@@ -30,15 +30,14 @@ router.get(
 );
 
 
-// Terminer un match
-router.put(
-  "/finish",
-  bracketController.finishMatch
-);
-
 router.get(
 "/player/:id/next",
 matchController.getPlayerNextMatch
+);
+
+router.post(
+"/finish",
+matchController.finishMatch
 );
 
 
