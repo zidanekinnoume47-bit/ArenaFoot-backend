@@ -228,57 +228,67 @@ Match.createMultiple(matches, (err, result) => {
 
     const links = [
 
-        [firstId, firstId + 8],
-        [firstId + 1, firstId + 8],
+[firstId, firstId + 8, 1],
+[firstId + 1, firstId + 8, 2],
 
-        [firstId + 2, firstId + 9],
-        [firstId + 3, firstId + 9],
+[firstId + 2, firstId + 9, 1],
+[firstId + 3, firstId + 9, 2],
 
-        [firstId + 4, firstId + 10],
-        [firstId + 5, firstId + 10],
+[firstId + 4, firstId + 10, 1],
+[firstId + 5, firstId + 10, 2],
 
-        [firstId + 6, firstId + 11],
-        [firstId + 7, firstId + 11],
+[firstId + 6, firstId + 11, 1],
+[firstId + 7, firstId + 11, 2],
 
-        [firstId + 8, firstId + 12],
-        [firstId + 9, firstId + 12],
+[firstId + 8, firstId + 12, 1],
+[firstId + 9, firstId + 12, 2],
 
-        [firstId + 10, firstId + 13],
-        [firstId + 11, firstId + 13],
+[firstId + 10, firstId + 13, 1],
+[firstId + 11, firstId + 13, 2],
 
-        [firstId + 12, firstId + 14],
-        [firstId + 13, firstId + 14]
+[firstId + 12, firstId + 14, 1],
+[firstId + 13, firstId + 14, 2]
 
-    ];
+];
 
     let completed = 0;
 
-    links.forEach(([matchId, nextMatchId]) => {
+   links.forEach(([matchId, nextMatchId, nextSlot]) => {
 
-        db.query(
-            "UPDATE matches SET next_match_id=? WHERE id=?",
-            [nextMatchId, matchId],
-            (error) => {
+    db.query(
+        `
+        UPDATE matches
+        SET
+            next_match_id = ?,
+            next_slot = ?
+        WHERE id = ?
+        `,
+        [
+            nextMatchId,
+            nextSlot,
+            matchId
+        ],
+        (error) => {
 
-                if (error) {
-                    console.log(error);
-                }
+            if (error) {
+                console.log(error);
+            }
 
-                completed++;
+            completed++;
 
-                if (completed === links.length) {
+            if (completed === links.length) {
 
-                    res.status(201).json({
-                        message: "Bracket complet créé 🏆",
-                        matches_created: matches.length
-                    });
-
-                }
+                res.status(201).json({
+                    message: "Bracket complet créé 🏆",
+                    matches_created: matches.length
+                });
 
             }
-        );
 
-    });
+        }
+    );
+
+});
 
 });
 
@@ -789,43 +799,45 @@ return;
 
 // Match normal : envoyer au prochain match
 
-if(match.next_match_id){
+if (match.next_match_id) {
 
-const sql = `
-UPDATE matches
-SET
-player_one = IF(player_one IS NULL, ?, player_one),
-player_two = IF(player_one IS NOT NULL AND player_two IS NULL, ?, player_two)
-WHERE id = ?
-`;
+    const sql =
+        match.next_slot === 1
+            ? `
+            UPDATE matches
+            SET player_one = ?
+            WHERE id = ?
+            `
+            : `
+            UPDATE matches
+            SET player_two = ?
+            WHERE id = ?
+            `;
 
-db.query(
-    sql,
-    [
-        winner,
-        winner,
-        match.next_match_id
-    ],
-    () => {
+    db.query(
+        sql,
+        [
+            winner,
+            match.next_match_id
+        ],
+        (error) => {
 
-        res.json({
-            message: "Match terminé, joueur qualifié"
-        });
+            if (error) {
+                return res.status(500).json(error);
+            }
 
-    }
-);
+            res.json({
+                message: "Match terminé, joueur qualifié"
+            });
 
+        }
+    );
 
+} else {
 
-}else{
-
-
-res.json({
-
-message:"Match terminé"
-
-});
-
+    res.json({
+        message: "Match terminé"
+    });
 
 }
 
