@@ -698,6 +698,29 @@ return res.status(500).json(error);
 
 const reward = tournament[0].reward;
 
+db.query(
+`
+UPDATE tournaments
+SET
+winner_id = ?,
+status = 'finished'
+WHERE id = ?
+`,
+[
+winner,
+match.tournament_id
+],
+(error)=>{
+
+if(error){
+
+return res.status(500).json(error);
+
+}
+
+}
+);
+
 
 
 const phoneSql = `
