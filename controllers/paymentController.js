@@ -77,7 +77,6 @@ const userId = data.user_id || data.player_id;
 
 console.log("BODY PAYMENT :", data);
 
-const userId = data.user_id || data.player_id;
 
 if (
     !userId ||
