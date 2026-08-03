@@ -69,4 +69,10 @@ router.delete(
     adminController.deletePlayer
 );
 
+router.get(
+    "/rewards",
+    adminAuth,
+    adminController.getRewards
+);
+
 module.exports = router;

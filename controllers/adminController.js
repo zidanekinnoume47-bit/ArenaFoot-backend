@@ -517,3 +517,38 @@ exports.getTournamentPlayers = (req, res) => {
     });
 
 };
+
+// Voir toutes les récompenses
+exports.getRewards = (req, res) => {
+
+    const sql = `
+    SELECT
+        rewards.id,
+        users.pseudo,
+        tournaments.name AS tournament,
+        rewards.amount,
+        rewards.phone,
+        rewards.status
+
+    FROM rewards
+
+    JOIN users
+    ON rewards.player_id = users.id
+
+    JOIN tournaments
+    ON rewards.tournament_id = tournaments.id
+
+    ORDER BY rewards.id DESC
+    `;
+
+    db.query(sql, (err, result) => {
+
+        if (err) {
+            return res.status(500).json(err);
+        }
+
+        res.json(result);
+
+    });
+
+};
