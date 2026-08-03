@@ -65,7 +65,7 @@ app.get("/payment-success", (req, res) => {
     console.log("Retour FedaPay :", req.query);
 
     // Redirection vers le frontend
-    res.redirect("https://localhost:5173/dashboard");
+    res.redirect("http://localhost:5173/dashboard");
 
     // Si tu testes uniquement en local, remplace par :
     // res.redirect("http://localhost:5173/dashboard");
