@@ -662,157 +662,95 @@ return res.status(500).json(err);
 
 
 // Si finale
-
-if(match.round === "Finale"){
-
-
-
-const sql = `
-
-SELECT reward
-
-FROM tournaments
-
-WHERE id=?
-
-`;
-
-
-
-db.query(
-
-sql,
-
-[match.tournament_id],
-
-(error,tournament)=>{
-
-
-if(error){
-
-return res.status(500).json(error);
-
-}
-
-
-
-const reward = tournament[0].reward;
-
-db.query(
-`
-UPDATE tournaments
-SET
-winner_id = ?,
-status = 'finished'
-WHERE id = ?
-`,
-[
-    winner,
-    match.tournament_id
-],
-(error) => {
-
-    if (error) {
-        return res.status(500).json(error);
-    }
-
-    const phoneSql = `
-    SELECT payment_phone
-    FROM users
-    WHERE id = ?
-    `;
-
-}
-);
-
-
-
-db.query(
-
-phoneSql,
-
-[winner],
-
-(error,user)=>{
-
-
-if(error){
-
-return res.status(500).json(error);
-
-}
-
-
-if(!user[0].payment_phone){
-
-return res.status(400).json({
-
-message:"Le gagnant n'a pas configuré son numéro MyFeda"
-
-});
-
-}
-
-
-Reward.create(
-
-{
-
-tournament_id:match.tournament_id,
-
-player_id:winner,
-
-amount:reward,
-
-phone:user[0].payment_phone
-
-},
-
-(err)=>{
-
-
-if(err){
-
-console.log(err);
-
-}
-
-
-
-res.json({
-
-message:"Finale terminée. Récompense créée 🏆"
-
-});
-
-
-}
-
-);
-
-
-
-}
-
-);
-
-
-
-}
-
-);
-
-
-
-return;
-
+// Si finale
+if (match.round === "Finale") {
+
+    db.query(
+        `
+        SELECT reward
+        FROM tournaments
+        WHERE id = ?
+        `,
+        [match.tournament_id],
+        (error, tournament) => {
+
+            if (error) {
+                return res.status(500).json(error);
+            }
+
+            const reward = tournament[0].reward;
+
+            db.query(
+                `
+                UPDATE tournaments
+                SET winner_id = ?, status = 'finished'
+                WHERE id = ?
+                `,
+                [winner, match.tournament_id],
+                (error) => {
+
+                    if (error) {
+                        return res.status(500).json(error);
+                    }
+
+                    db.query(
+                        `
+                        SELECT payment_phone
+                        FROM users
+                        WHERE id = ?
+                        `,
+                        [winner],
+                        (error, user) => {
+
+                            if (error) {
+                                return res.status(500).json(error);
+                            }
+
+                            if (!user.length || !user[0].payment_phone) {
+                                return res.status(400).json({
+                                    message: "Le gagnant n'a pas configuré son numéro MyFeda"
+                                });
+                            }
+
+                            Reward.create(
+                                {
+                                    tournament_id: match.tournament_id,
+                                    player_id: winner,
+                                    amount: reward,
+                                    phone: user[0].payment_phone
+                                },
+                                (err) => {
+
+                                    if (err) {
+                                        console.log("ERREUR REWARD :", err);
+                                        return res.status(500).json(err);
+                                    }
+
+                                    console.log("✅ Récompense créée");
+
+                                    return res.json({
+                                        message: "Finale terminée. Récompense créée 🏆"
+                                    });
+
+                                }
+                            );
+
+                        }
+                    );
+
+                }
+            );
+
+        }
+    );
+
+    return;
 }
 
 
 
 
-
-// Match normal : envoyer au prochain match
+// Si Finale
 
 if (match.next_match_id) {
 
