@@ -75,23 +75,20 @@ const data = req.body;
 
 const userId = data.user_id || data.player_id;
 
-if(
-!data.player_id ||
-!data.user_id ||
-!data.tournament_id ||
-!data.amount
-){
+const data = req.body;
+
+console.log("BODY PAYMENT :", data);
+
+const userId = data.user_id || data.player_id;
+
+if (
+    !userId ||
+    !data.tournament_id ||
+    !data.amount
+) {
     return res.status(400).json({
-        message:"Vous devez avoir un compte ArenaFoot pour participer"
+        message: "Vous devez avoir un compte ArenaFoot pour participer"
     });
-}{
-
-return res.status(400).json({
-
-message:"Vous devez avoir un compte ArenaFoot pour participer"
-
-});
-
 }
 
 console.log("Création paiement...");
@@ -151,9 +148,9 @@ Payment.create(
 
 {
 
-player_id:data.player_id,
+player_id:userId,
 
-user_id:data.user_id,
+user_id:userId,
 
 tournament_id:data.tournament_id,
 
