@@ -791,51 +791,28 @@ return;
 
 if(match.next_match_id){
 
-
 const sql = `
-
 UPDATE matches
-
-SET 
-
-player_one = CASE 
-
-WHEN player_one IS NULL THEN ?
-
-ELSE player_one END,
-
-player_two = CASE 
-
-WHEN player_two IS NULL THEN ?
-
-ELSE player_two END
-
-WHERE id=?
-
+SET
+player_one = IF(player_one IS NULL, ?, player_one),
+player_two = IF(player_one IS NOT NULL AND player_two IS NULL, ?, player_two)
+WHERE id = ?
 `;
 
-
-
 db.query(
+    sql,
+    [
+        winner,
+        winner,
+        match.next_match_id
+    ],
+    () => {
 
-sql,
+        res.json({
+            message: "Match terminé, joueur qualifié"
+        });
 
-[
-winner,
-winner,
-match.next_match_id
-],
-
-()=>{
-
-res.json({
-
-message:"Match terminé, joueur qualifié"
-
-});
-
-}
-
+    }
 );
 
 
