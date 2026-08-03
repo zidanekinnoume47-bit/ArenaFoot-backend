@@ -722,44 +722,6 @@ WHERE id = ?
     WHERE id = ?
     `;
 
-    db.query(
-        phoneSql,
-        [winner],
-        (error, user) => {
-
-            if (error) {
-                return res.status(500).json(error);
-            }
-
-            if (!user[0].payment_phone) {
-                return res.status(400).json({
-                    message: "Le gagnant n'a pas configuré son numéro MyFeda"
-                });
-            }
-
-            Reward.create(
-                {
-                    tournament_id: match.tournament_id,
-                    player_id: winner,
-                    amount: reward,
-                    phone: user[0].payment_phone
-                },
-                (err) => {
-
-                    if (err) {
-                        console.log(err);
-                    }
-
-                    res.json({
-                        message: "Finale terminée. Récompense créée 🏆"
-                    });
-
-                }
-            );
-
-        }
-    );
-
 }
 );
 
