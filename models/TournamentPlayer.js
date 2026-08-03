@@ -2,22 +2,20 @@ const db = require("../config/database");
 
 const TournamentPlayer = {
 
-
 join: (data, callback) => {
 
 const id = data.player_id || data.user_id;
 
 const sql = `
-INSERT INTO tournament_players 
-(tournament_id, player_id, user_id)
-VALUES (?, ?, ?)
+INSERT INTO tournament_players
+(tournament_id, player_id)
+VALUES (?, ?)
 `;
 
 db.query(
 sql,
 [
 data.tournament_id,
-id,
 id
 ],
 callback
