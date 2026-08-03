@@ -446,7 +446,8 @@ message:"Paiement validé, joueur inscrit au tournoi"
 
 exports.webhook = (req,res)=>{
 
-
+console.log("========== WEBHOOK FEDAPAY ==========");
+    console.log(req.body);
 const event = req.body;
 
 
