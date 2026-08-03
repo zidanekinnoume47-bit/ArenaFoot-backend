@@ -6,8 +6,8 @@ create:(data,callback)=>{
 
 const sql = `
 INSERT INTO matches
-(tournament_id,player_one,player_two,round)
-VALUES (?,?,?,?)
+(tournament_id, player_one, player_two, round, position)
+VALUES ?
 `;
 
 db.query(
@@ -33,11 +33,12 @@ INSERT INTO matches
 VALUES ?
 `;
 
-const values = matches.map(match=>[
+const values = matches.map(match => [
 match.tournament_id,
 match.player_one,
 match.player_two,
-match.round
+match.round,
+match.position
 ]);
 
 db.query(

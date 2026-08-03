@@ -217,38 +217,70 @@ position:1
 
 
 
+Match.createMultiple(matches, (err, result) => {
 
-Match.createMultiple(
+    if (err) {
+        console.log(err);
+        return res.status(500).json(err);
+    }
 
-matches,
+    const firstId = result.insertId;
 
-(err)=>{
+    const links = [
 
+        [firstId, firstId + 8],
+        [firstId + 1, firstId + 8],
 
-if(err){
+        [firstId + 2, firstId + 9],
+        [firstId + 3, firstId + 9],
 
-console.log(err);
+        [firstId + 4, firstId + 10],
+        [firstId + 5, firstId + 10],
 
-return res.status(500).json(err);
+        [firstId + 6, firstId + 11],
+        [firstId + 7, firstId + 11],
 
-}
+        [firstId + 8, firstId + 12],
+        [firstId + 9, firstId + 12],
 
+        [firstId + 10, firstId + 13],
+        [firstId + 11, firstId + 13],
 
+        [firstId + 12, firstId + 14],
+        [firstId + 13, firstId + 14]
 
+    ];
 
-res.status(201).json({
+    let completed = 0;
 
-message:"Bracket complet créé 🏆",
+    links.forEach(([matchId, nextMatchId]) => {
 
-matches_created:matches.length
+        db.query(
+            "UPDATE matches SET next_match_id=? WHERE id=?",
+            [nextMatchId, matchId],
+            (error) => {
+
+                if (error) {
+                    console.log(error);
+                }
+
+                completed++;
+
+                if (completed === links.length) {
+
+                    res.status(201).json({
+                        message: "Bracket complet créé 🏆",
+                        matches_created: matches.length
+                    });
+
+                }
+
+            }
+        );
+
+    });
 
 });
-
-
-
-}
-
-);
 
 
 
