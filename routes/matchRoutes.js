@@ -42,9 +42,4 @@ matchController.getPlayerNextMatch
 );
 
 
-router.post(
-"/finish",
-matchController.finishMatch
-);
-
 module.exports = router;

@@ -569,13 +569,16 @@ res.json(result[0]);
 // Terminer un match
 // ==================================
 
-exports.finishMatch = (req,res)=>{
+exports.finishMatch = (req, res) => {
 
-const {
-match_id,
-winner,
-score
-} = req.body;
+    console.log("FINISH MATCH APPELÉ");
+    console.log(req.body);
+
+    const {
+        match_id,
+        winner,
+        score
+    } = req.body;
 
 
 
