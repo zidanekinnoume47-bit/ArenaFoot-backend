@@ -16,7 +16,8 @@ sql,
 data.tournament_id,
 data.player_one,
 data.player_two,
-data.round
+data.round,
+data.position
 ],
 callback
 );
@@ -25,26 +26,26 @@ callback
 
 
 
-createMultiple:(matches, callback)=>{
+createMultiple: (matches, callback) => {
 
 const sql = `
 INSERT INTO matches
-(tournament_id, player_one, player_two, round)
+(tournament_id, player_one, player_two, round, position)
 VALUES ?
 `;
 
 const values = matches.map(match => [
-match.tournament_id,
-match.player_one,
-match.player_two,
-match.round,
-match.position
+    match.tournament_id,
+    match.player_one,
+    match.player_two,
+    match.round,
+    match.position
 ]);
 
 db.query(
-sql,
-[values],
-callback
+    sql,
+    [values],
+    callback
 );
 
 },
