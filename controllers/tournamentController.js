@@ -203,11 +203,13 @@ TournamentPlayer.join(
 payload,
 (err,result)=>{
 
+if (err) {
 
-if(err){
+    console.log("ERREUR JOIN :", err);
 
     return res.status(500).json({
-        message:"Erreur inscription"
+        message: "Erreur inscription",
+        error: err.message
     });
 
 }
@@ -322,6 +324,8 @@ return res.json({
 
 
 // Tournois d'un joueur
+
+
 exports.getPlayerTournaments = (req,res)=>{
 
 
