@@ -101,3 +101,18 @@ res.json(result[0]);
 
 
 };
+
+
+exports.getAllRooms = (req,res)=>{
+
+Room.getAll((err,result)=>{
+
+if(err){
+return res.status(500).json(err);
+}
+
+res.json(result);
+
+});
+
+};

@@ -28,5 +28,10 @@ roomController.getRoom
 );
 
 
+router.get(
+"/",
+roomController.getAllRooms
+);
+
 
 module.exports = router;

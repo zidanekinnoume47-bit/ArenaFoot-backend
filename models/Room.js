@@ -129,4 +129,34 @@ callback
 
 
 
+getAll:(callback)=>{
+
+const sql = `
+
+SELECT
+
+rooms.*,
+
+u1.pseudo AS host_name,
+
+u2.pseudo AS guest_name
+
+FROM rooms
+
+LEFT JOIN users u1
+ON rooms.host_player=u1.id
+
+LEFT JOIN users u2
+ON rooms.guest_player=u2.id
+
+ORDER BY rooms.id DESC
+
+`;
+
+db.query(sql, callback);
+
+},
+
+
+
 module.exports = Room;
