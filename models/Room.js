@@ -129,6 +129,38 @@ callback
 
 
 
+
+
+getAll: (callback) => {
+
+    const sql = `
+    SELECT
+        rooms.id,
+        rooms.match_id,
+        rooms.room_code,
+        rooms.status,
+
+        u1.pseudo AS host,
+        u2.pseudo AS guest
+
+    FROM rooms
+
+    LEFT JOIN users u1
+    ON rooms.host_player = u1.id
+
+    LEFT JOIN users u2
+    ON rooms.guest_player = u2.id
+
+    ORDER BY rooms.id DESC
+    `;
+
+    db.query(sql, callback);
+
+}
+
+
+
+
 getAll:(callback)=>{
 
 const sql = `
