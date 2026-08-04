@@ -518,6 +518,48 @@ exports.getTournamentPlayers = (req, res) => {
 
 };
 
+
+
+// Voir tous les paiements
+exports.getPayments = (req, res) => {
+
+    const sql = `
+    SELECT
+        payments.id,
+        users.pseudo,
+        tournaments.name AS tournament,
+        payments.amount,
+        payments.method,
+        payments.transaction_id,
+        payments.status,
+        payments.created_at
+
+    FROM payments
+
+    JOIN users
+    ON payments.player_id = users.id
+
+    JOIN tournaments
+    ON payments.tournament_id = tournaments.id
+
+    ORDER BY payments.created_at DESC
+    `;
+
+    db.query(sql, (err, result) => {
+
+        if (err) {
+            console.log(err);
+            return res.status(500).json(err);
+        }
+
+        res.json(result);
+
+    });
+
+};
+
+
+
 // Voir toutes les récompenses
 exports.getRewards = (req, res) => {
 

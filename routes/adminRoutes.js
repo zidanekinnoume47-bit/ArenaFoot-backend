@@ -41,6 +41,12 @@ adminAuth,
 adminController.validatePayment
 );
 
+router.get(
+"/payments",
+adminAuth,
+adminController.getPayments
+);
+
 // Création temporaire de joueurs de test
 router.post(
 "/test-players/:id",
