@@ -3,6 +3,69 @@ const db = require("../config/database");
 const Reward = require("../models/Reward");
 
 
+// ==================================
+// Réinitialiser un tournoi
+// ==================================
+
+const resetTournament = (tournamentId, callback) => {
+
+    db.query(
+        `
+        DELETE FROM rooms
+        WHERE match_id IN (
+            SELECT id
+            FROM matches
+            WHERE tournament_id = ?
+        )
+        `,
+        [tournamentId],
+        (err) => {
+
+            if (err) return callback(err);
+
+            db.query(
+                `
+                DELETE FROM matches
+                WHERE tournament_id = ?
+                `,
+                [tournamentId],
+                (err) => {
+
+                    if (err) return callback(err);
+
+                    db.query(
+                        `
+                        DELETE FROM tournament_players
+                        WHERE tournament_id = ?
+                        `,
+                        [tournamentId],
+                        (err) => {
+
+                            if (err) return callback(err);
+
+                            db.query(
+                                `
+                                UPDATE tournaments
+                                SET
+                                    status='open',
+                                    winner_id=NULL
+                                WHERE id=?
+                                `,
+                                [tournamentId],
+                                callback
+                            );
+
+                        }
+                    );
+
+                }
+            );
+
+        }
+    );
+
+};
+
 // Fonction utilitaire pour mélanger le tableau de joueurs
 
 const shuffleArray = (array) => {
@@ -728,9 +791,20 @@ if (match.round === "Finale") {
 
                                     console.log("✅ Récompense créée");
 
-                                    return res.json({
-                                        message: "Finale terminée. Récompense créée 🏆"
-                                    });
+resetTournament(
+    match.tournament_id,
+    (err) => {
+
+        if (err) {
+            return res.status(500).json(err);
+        }
+
+        return res.json({
+            message: "🏆 Tournoi terminé, récompense créée et tournoi réinitialisé."
+        });
+
+    }
+);
 
                                 }
                             );
