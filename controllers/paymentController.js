@@ -220,222 +220,112 @@ payment_id:result.insertId
 // ==================================
 // Valider un paiement
 // ==================================
+exports.validatePayment = (req, res) => {
 
-exports.validatePayment = (req,res)=>{
+    const { payment_id } = req.body;
 
+    if (!payment_id) {
+        return res.status(400).json({
+            message: "payment_id manquant"
+        });
+    }
 
-const { payment_id } = req.body;
+    Payment.getById(payment_id, (err, payment) => {
 
+        if (err) {
+            return res.status(500).json({
+                message: "Erreur récupération paiement"
+            });
+        }
 
+        if (!payment || payment.length === 0) {
+            return res.status(404).json({
+                message: "Paiement introuvable"
+            });
+        }
 
-if(!payment_id){
+        const data = payment[0];
 
-return res.status(400).json({
+        Payment.updateStatus(payment_id, "success", (err) => {
 
-message:"payment_id manquant"
+            if (err) {
+                return res.status(500).json({
+                    message: "Erreur validation paiement"
+                });
+            }
 
-});
+            TournamentPlayer.updatePaymentStatus(
+                data.player_id,
+                data.tournament_id,
+                (err) => {
 
-}
+                    if (err) {
+                        return res.status(500).json({
+                            message: "Erreur mise à jour joueur"
+                        });
+                    }
 
+                    const sql = `
+                        SELECT COUNT(*) AS total
+                        FROM tournament_players
+                        WHERE tournament_id = ?
+                        AND payment_status = 'paid'
+                    `;
 
+                    db.query(sql, [data.tournament_id], async (error, count) => {
 
+                        if (error) {
+                            return res.status(500).json(error);
+                        }
 
-// Récupérer paiement
+                        if (count[0].total >= 16) {
 
-Payment.getById(
+                            Tournament.updateStatus(
+                                data.tournament_id,
+                                "full",
+                                async (err) => {
 
-payment_id,
+                                    if (err) {
+                                        return res.status(500).json(err);
+                                    }
 
-(err,payment)=>{
+                                    try {
 
+                                        await generateBracket(data.tournament_id);
 
-if(err){
+                                        return res.json({
+                                            message: "Paiement validé. Tournoi complet. Bracket généré."
+                                        });
 
-return res.status(500).json({
+                                    } catch (error) {
 
-message:"Erreur récupération paiement"
+                                        console.log(error);
 
-});
+                                        return res.status(500).json({
+                                            message: "Erreur génération du bracket."
+                                        });
 
-}
+                                    }
 
+                                }
+                            );
 
+                        } else {
 
-if(!payment || payment.length===0){
+                            return res.json({
+                                message: "Paiement validé, joueur inscrit au tournoi"
+                            });
 
-return res.status(404).json({
+                        }
 
-message:"Paiement introuvable"
+                    });
 
-});
+                }
+            );
 
-}
+        });
 
-
-
-const data = payment[0];
-
-
-
-
-
-// Mettre paiement en succès
-
-Payment.updateStatus(
-
-payment_id,
-
-"success",
-
-(err)=>{
-
-
-if(err){
-
-return res.status(500).json({
-
-message:"Erreur validation paiement"
-
-});
-
-}
-
-
-
-
-// Mettre joueur payé
-
-TournamentPlayer.updatePaymentStatus(
-
-data.player_id,
-
-data.tournament_id,
-
-(err)=>{
-
-
-if(err){
-
-console.log(err);
-
-
-return res.status(500).json({
-
-message:"Erreur mise à jour joueur"
-
-});
-
-}
-
-
-
-
-
-// Vérifier nombre de joueurs payés
-
-const sql=`
-
-SELECT COUNT(*) AS total
-
-FROM tournament_players
-
-WHERE tournament_id=?
-
-AND payment_status='paid'
-
-`;
-
-
-
-db.query(
-
-sql,
-
-[data.tournament_id],
-
-(error,count)=>{
-
-
-if(error){
-
-return res.status(500).json(error);
-
-}
-
-
-
-if(count[0].total>=16){
-
-
-
-Tournament.updateStatus(
-
-data.tournament_id,
-
-"full",
-
-(err)=>{
-
-
-if(err){
-
-console.log(err);
-
-}
-
-
-
-return res.json({
-
-message:"Paiement validé. Tournoi complet."
-
-});
-
-
-}
-
-);
-
-
-
-}else{
-
-
-return res.json({
-
-message:"Paiement validé, joueur inscrit au tournoi"
-
-});
-
-
-}
-
-
-
-}
-
-);
-
-
-
-}
-
-);
-
-
-
-}
-
-);
-
-
-
-}
-
-);
-
-
+    });
 
 };
 
@@ -644,113 +534,62 @@ return;
 
 
 
-if(count[0].total >= 16){
+if (count[0].total >= 16) {
 
+    Tournament.updateStatus(
+        payment.tournament_id,
+        "full",
+        async (err) => {
 
+            if (err) {
+                console.log(err);
+                return res.status(500).json(err);
+            }
 
-Tournament.updateStatus(
+            try {
 
-payment.tournament_id,
+                await generateBracket(payment.tournament_id);
 
-"full",
+                console.log("Bracket créé automatiquement 🏆");
 
-(err)=>{
+            } catch (error) {
 
+                console.log("Erreur création bracket :", error);
 
-if(err){
+            }
 
-console.log(err);
+            return res.json({
+                received: true
+            });
 
-return;
+        }
+    );
 
-}else {
+} else {
 
-        // 👈 Ici tu peux répondre si le tournoi n'est pas encore complet
+    return res.json({
+        received: true
+    });
 
-        return res.json({
+}
+}
 
-            received: true
-
-        });
-
-    }
-
-
-
-
-
-// Génération du bracket
-
-generateBracket(payment.tournament_id)
-
-.then(()=>{
-
-
-console.log(
-"Bracket créé automatiquement 🏆"
-);
-
-
-
-})
-
-.catch((err)=>{
-
-
-console.log(
-"Erreur création bracket :",
-err
-);
-
-
-
-});
-
-
+)
 
 }
 
-);
-
-
+)
 
 }
 
-
-
-}
-
-);
-
+)
 
 }
 
-);
-
-
+)
 
 }
-
-);
-
-
-
-}
-
-);
-
-
-
-}
-
-
-
-
-res.json({
-
-received:true
-
-});
-
 
 };
+
+
