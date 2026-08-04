@@ -67,7 +67,7 @@ app.get("/payment-success", (req, res) => {
     const { status, id } = req.query;
 
     res.redirect(
-        `http://localhost:5173/dashboard?status=${status}&transaction=${id}`
+        `https://arenafoot-backend-production.up.railway.app/dashboard?status=${status}&transaction=${id}`
     );
 
 });
