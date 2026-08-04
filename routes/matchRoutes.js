@@ -31,6 +31,11 @@ router.get(
 
 
 router.get(
+"/",
+matchController.getAllMatches
+);
+
+router.get(
 "/player/:id/next",
 matchController.getPlayerNextMatch
 );

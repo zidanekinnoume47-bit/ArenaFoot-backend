@@ -809,3 +809,56 @@ if (match.next_match_id) {
 
 
 };
+
+
+
+
+// ==================================
+// Tous les matchs (Admin)
+// ==================================
+
+exports.getAllMatches = (req, res) => {
+
+    const sql = `
+    SELECT
+
+        matches.id,
+        matches.round,
+        matches.score,
+        matches.status,
+
+        u1.pseudo AS player_one_name,
+        u2.pseudo AS player_two_name,
+
+        uw.pseudo AS winner_name,
+
+        tournaments.name AS tournament_name
+
+    FROM matches
+
+    LEFT JOIN users u1
+    ON matches.player_one = u1.id
+
+    LEFT JOIN users u2
+    ON matches.player_two = u2.id
+
+    LEFT JOIN users uw
+    ON matches.winner = uw.id
+
+    LEFT JOIN tournaments
+    ON matches.tournament_id = tournaments.id
+
+    ORDER BY matches.id DESC
+    `;
+
+    db.query(sql, (err, result) => {
+
+        if (err) {
+            return res.status(500).json(err);
+        }
+
+        res.json(result);
+
+    });
+
+};
