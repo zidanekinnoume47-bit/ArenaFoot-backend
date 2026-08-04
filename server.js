@@ -32,6 +32,7 @@ const adminRoutes = require("./routes/adminRoutes");
 const rewardRoutes = require("./routes/rewardRoutes");
 const mobilePaymentRoutes = require("./routes/mobileRoutes");
 const bracketRoutes = require("./routes/bracketRoutes");
+const rankingRoutes = require("./routes/rankingRoutes");
 
 console.log("userRoutes :", typeof userRoutes);
 console.log("tournamentRoutes :", typeof tournamentRoutes);
@@ -42,6 +43,7 @@ console.log("adminRoutes :", typeof adminRoutes);
 console.log("rewardRoutes :", typeof rewardRoutes);
 console.log("mobilePaymentRoutes :", typeof mobilePaymentRoutes);
 console.log("bracketRoutes :", typeof bracketRoutes);
+console.log("rankingRoutes :", typeof rankingRoutes);
 
 // =======================
 // Accueil API
@@ -99,6 +101,9 @@ app.use("/api/mobile-payment", mobilePaymentRoutes);
 
 console.log("CHARGEMENT BRACKET");
 app.use("/api/bracket", bracketRoutes);
+
+console.log("CHARGEMENT RANKING");
+app.use("/api/ranking", rankingRoutes);
 
 const PORT = process.env.PORT || 5000;
 
