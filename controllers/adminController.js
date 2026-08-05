@@ -1,4 +1,5 @@
 const db = require("../config/database");
+const bracketController = require("./bracketController");
 
 // Voir tous les joueurs
 exports.players = (req, res) => {
@@ -160,73 +161,7 @@ exports.createTestPlayers = (req, res) => {
  * GENERATION DU BRACKET : Tirage au sort et création des 8 matchs de 1/8ème de finale (16 joueurs)
  */
 exports.generateBracket = (req, res) => {
-  const tournament_id = req.params.id;
-
-  const sqlGetPlayers = `
-    SELECT player_id 
-    FROM tournament_players 
-    WHERE tournament_id = ? AND payment_status = 'paid'
-  `;
-
-  db.query(sqlGetPlayers, [tournament_id], (err, players) => {
-    if (err) {
-      console.error("Erreur récupération joueurs :", err);
-      return res.status(500).json(err);
-    }
-
-    if (players.length < 16) {
-      return res.status(400).json({
-        message: `Impossible de générer le bracket. Il faut 16 joueurs payés (actuellement : ${players.length}/16).`
-      });
-    }
-
-    db.query("SELECT COUNT(*) AS count FROM matches WHERE tournament_id = ?", [tournament_id], (err, matchCheck) => {
-      if (err) return res.status(500).json(err);
-
-      if (matchCheck[0].count > 0) {
-        return res.status(400).json({
-          message: "Le bracket a déjà été généré pour ce tournoi !"
-        });
-      }
-
-      const shuffledPlayers = [...players];
-      for (let i = shuffledPlayers.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffledPlayers[i], shuffledPlayers[j]] = [shuffledPlayers[j], shuffledPlayers[i]];
-      }
-
-      const matchesToInsert = [];
-      for (let i = 0; i < 16; i += 2) {
-        matchesToInsert.push([
-          tournament_id,
-          shuffledPlayers[i].player_id,
-          shuffledPlayers[i + 1].player_id,
-          "round_of_16",
-          "pending"
-        ]);
-      }
-
-      const sqlInsertMatches = `
-        INSERT INTO matches (tournament_id, player_one, player_two, round, status)
-        VALUES ?
-      `;
-
-      db.query(sqlInsertMatches, [matchesToInsert], (err) => {
-        if (err) {
-          console.error("Erreur insertion matchs :", err);
-          return res.status(500).json(err);
-        }
-
-        db.query("UPDATE tournaments SET status = 'in_progress' WHERE id = ?", [tournament_id], (err) => {
-          if (err) return res.status(500).json(err);
-
-          res.json({
-            message: "🏆 Bracket généré avec succès ! 8 matchs créés pour les 1/8ème de finale."
-          });
-        });
-      });
-    });
-  });
+    return bracketController.generateMatches(req, res);
 };
 
 /**
