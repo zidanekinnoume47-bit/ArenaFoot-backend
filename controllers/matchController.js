@@ -363,14 +363,18 @@ exports.finishMatch = (req, res) => {
                 // ==================================
                 // QUALIFICATION AU TOUR SUIVANT
                 // ==================================
+if (!match.next_match_id) {
 
-                if (!match.next_match_id) {
+    return res.json({
+        message: "Aucun match suivant."
+    });
 
-                    return res.json({
-                        message: "Aucun match suivant."
-                    });
+}
 
-                }
+const sql =
+    match.next_slot === 1
+        ? "UPDATE matches SET player_one=? WHERE id=?"
+        : "UPDATE matches SET player_two=? WHERE id=?";
 
 db.query(
     sql,
