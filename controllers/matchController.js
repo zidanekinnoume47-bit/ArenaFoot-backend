@@ -193,25 +193,42 @@ exports.getTournamentMatches = (req, res) => {
 // ==================================
 exports.getBracket = (req, res) => {
     const tournament_id = req.params.id;
-    const sql = `
-        SELECT
-            matches.id,
-            matches.tournament_id,
-            matches.round,
-            matches.player_one,
-            matches.player_two,
-            matches.winner,
-            matches.score,
-            matches.status,
-            matches.next_match_id,
-            u1.pseudo AS player_one_name,
-            u2.pseudo AS player_two_name
-        FROM matches
-        LEFT JOIN users u1 ON matches.player_one = u1.id
-        LEFT JOIN users u2 ON matches.player_two = u2.id
-        WHERE matches.tournament_id = ?
-        ORDER BY matches.id ASC
-    `;
+   const sql = `
+SELECT
+    matches.id,
+    matches.tournament_id,
+    matches.round,
+    matches.position,
+    matches.player_one,
+    matches.player_two,
+    matches.winner,
+    matches.score,
+    matches.status,
+    matches.next_match_id,
+    matches.next_slot,
+
+    u1.pseudo AS player_one_name,
+    u2.pseudo AS player_two_name
+
+FROM matches
+
+LEFT JOIN users u1
+ON matches.player_one = u1.id
+
+LEFT JOIN users u2
+ON matches.player_two = u2.id
+
+WHERE matches.tournament_id = ?
+
+ORDER BY
+CASE matches.round
+    WHEN 'Huitième de finale' THEN 1
+    WHEN 'Quart de finale' THEN 2
+    WHEN 'Demi-finale' THEN 3
+    WHEN 'Finale' THEN 4
+END,
+matches.position ASC
+`;
     db.query(sql, [tournament_id], (err, result) => {
         if (err) return res.status(500).json(err);
         res.json(result);
@@ -355,29 +372,57 @@ exports.finishMatch = (req, res) => {
 
                 }
 
-                const sql =
-                    match.next_slot === 1
-                        ? "UPDATE matches SET player_one=? WHERE id=?"
-                        : "UPDATE matches SET player_two=? WHERE id=?";
+db.query(
+    sql,
+    [winner, match.next_match_id],
+    (err) => {
 
-                db.query(
-                    sql,
-                    [
-                        winner,
-                        match.next_match_id
-                    ],
-                    (err) => {
+        if (err) {
+            return res.status(500).json(err);
+        }
 
-                        if (err) {
-                            return res.status(500).json(err);
+        db.query(
+            "SELECT player_one, player_two FROM matches WHERE id = ?",
+            [match.next_match_id],
+            (err, rows) => {
+
+                if (err) {
+                    return res.status(500).json(err);
+                }
+
+                const nextMatch = rows[0];
+
+                if (nextMatch.player_one && nextMatch.player_two) {
+
+                    db.query(
+                        "UPDATE matches SET status='pending' WHERE id=?",
+                        [match.next_match_id],
+                        (err) => {
+
+                            if (err) {
+                                return res.status(500).json(err);
+                            }
+
+                            return res.json({
+                                message: "🏆 Vainqueur qualifié pour le tour suivant."
+                            });
+
                         }
+                    );
 
-                        return res.json({
-                            message: "🏆 Vainqueur qualifié pour le tour suivant."
-                        });
+                } else {
 
-                    }
-                );
+                    return res.json({
+                        message: "🏆 Vainqueur qualifié pour le tour suivant."
+                    });
+
+                }
+
+            }
+        );
+
+    }
+);
 
             }
         );
