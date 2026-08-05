@@ -1,93 +1,84 @@
 const express = require("express");
-
 const router = express.Router();
 
-
-const adminController =
-require("../controllers/adminController");
-
-const adminAuth =
-require("../middleware/adminAuth");
-
+const adminController = require("../controllers/adminController");
+const adminAuth = require("../middleware/adminAuth");
 const rewardController = require("../controllers/rewardController");
-
 
 console.log("ADMIN CONTROLLER :", adminController);
 console.log("ADMIN AUTH :", adminAuth);
 
 router.get(
-"/players",
-adminAuth,
-adminController.players
+  "/players",
+  adminAuth,
+  adminController.players
 );
 
 router.get(
-    "/player/:id",
-    adminAuth,
-    adminController.getPlayer
+  "/player/:id",
+  adminAuth,
+  adminController.getPlayer
 );
 
 router.get(
-"/tournaments",
-adminAuth,
-adminController.tournaments
+  "/tournaments",
+  adminAuth,
+  adminController.tournaments
 );
-
-
 
 router.put(
-"/payment/:id",
-adminAuth,
-adminController.validatePayment
+  "/payment/:id",
+  adminAuth,
+  adminController.validatePayment
 );
 
 router.get(
-"/payments",
-adminAuth,
-adminController.getPayments
+  "/payments",
+  adminAuth,
+  adminController.getPayments
 );
 
-// Création temporaire de joueurs de test
+// Création temporaire de joueurs de test pour un tournoi
 router.post(
-"/test-players/:id",
-adminAuth,
-adminController.createTestPlayers
+  "/test-players/:id",
+  adminAuth,
+  adminController.createTestPlayers
 );
 
 router.put(
-    "/ban/:id",
-    adminAuth,
-    adminController.banPlayer
+  "/ban/:id",
+  adminAuth,
+  adminController.banPlayer
 );
 
 router.delete(
-    "/tournament/:id",
-    adminAuth,
-    adminController.deleteTournament
+  "/tournament/:id",
+  adminAuth,
+  adminController.deleteTournament
 );
 
 router.get(
-    "/tournament/:id/players",
-    adminAuth,
-    adminController.getTournamentPlayers
+  "/tournament/:id/players",
+  adminAuth,
+  adminController.getTournamentPlayers
 );
 
 router.delete(
-    "/player/:id",
-    adminAuth,
-    adminController.deletePlayer
+  "/player/:id",
+  adminAuth,
+  adminController.deletePlayer
 );
 
 router.get(
-    "/rewards",
-    adminAuth,
-    adminController.getRewards
+  "/rewards",
+  adminAuth,
+  adminController.getRewards
 );
 
 router.put(
-    "/reward/:id",
-    adminAuth,
-    rewardController.sendReward
+  "/reward/:id",
+  adminAuth,
+  rewardController.sendReward
 );
 
 module.exports = router;
