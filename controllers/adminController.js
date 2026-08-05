@@ -47,14 +47,12 @@ exports.validatePayment = (req, res) => {
 
 /**
  * LOGIQUE DE SIMULATION : Ajouter 15 joueurs de test avec comptes + inscriptions + paiements validés
- * Cela permet de tester le comportement quand le tournoi atteint 16/16 (ex: masquage du bouton participer).
  */
 exports.createTestPlayers = (req, res) => {
   const tournament_id = req.params.id;
-  const timestamp = Date.now(); // Pour éviter les conflits d'unicité d'email/pseudo
-  const password = "$2b$10$7EqJtq98hPqEX7fNZaFWoO4O5x4Yz9W5s6QJ7sV4vF6Jz1x9JQ2O6"; // Hash bcrypt par défaut
+  const timestamp = Date.now();
+  const password = "$2b$10$7EqJtq98hPqEX7fNZaFWoO4O5x4Yz9W5s6QJ7sV4vF6Jz1x9JQ2O6";
 
-  // Récupérer d'abord le montant du tournoi pour enregistrer le paiement
   db.query("SELECT entry_fee FROM tournaments WHERE id = ?", [tournament_id], (err, tourneyResult) => {
     if (err || tourneyResult.length === 0) {
       return res.status(500).json({ error: "Tournoi introuvable ou erreur SQL" });
@@ -64,7 +62,6 @@ exports.createTestPlayers = (req, res) => {
     let addedCount = 0;
     let errors = 0;
 
-    // Fonction récursive pour insérer 15 joueurs les uns après les autres sans surcharger la BD
     const insertSinglePlayer = (index) => {
       if (index > 15) {
         return res.json({
@@ -81,7 +78,6 @@ exports.createTestPlayers = (req, res) => {
         password: password
       };
 
-      // 1. Insertion dans 'users'
       db.query(
         `INSERT INTO users (name, pseudo, email, phone, efootball_id, password) VALUES (?, ?, ?, ?, ?, ?)`,
         [user.name, user.pseudo, user.email, user.phone, user.efootball_id, user.password],
@@ -94,10 +90,9 @@ exports.createTestPlayers = (req, res) => {
 
           const newUserId = userRes.insertId;
 
-          // 2. Inscription au tournoi dans 'tournament_players' (Double vérification: Compte OK + statut 'paid')
           db.query(
-            `INSERT INTO tournament_players (tournament_id, player_id, user_id, payment_status) VALUES (?, ?, ?, 'paid')`,
-            [tournament_id, newUserId, newUserId],
+            `INSERT INTO tournament_players (tournament_id, player_id, payment_status) VALUES (?, ?, 'paid')`,
+            [tournament_id, newUserId],
             (err) => {
               if (err) {
                 console.error(`Erreur inscription tournament_players ${index}:`, err);
@@ -105,7 +100,6 @@ exports.createTestPlayers = (req, res) => {
                 return insertSinglePlayer(index + 1);
               }
 
-              // 3. Insertion dans la table 'payments' pour respecter la double condition stricte
               db.query(
                 `INSERT INTO payments (player_id, tournament_id, amount, method, transaction_id, status) VALUES (?, ?, ?, 'TEST_SIMULATION', ?, 'success')`,
                 [newUserId, tournament_id, entryFee, `SIM_TX_${timestamp}_${index}`],
@@ -114,7 +108,6 @@ exports.createTestPlayers = (req, res) => {
                     console.error(`Erreur création paiement ${index}:`, err);
                   }
                   addedCount++;
-                  // Passer au joueur suivant
                   insertSinglePlayer(index + 1);
                 }
               );
@@ -124,8 +117,86 @@ exports.createTestPlayers = (req, res) => {
       );
     };
 
-    // Lancer la première insertion (index 1 à 15)
     insertSinglePlayer(1);
+  });
+};
+
+/**
+ * GENERATION DU BRACKET : Tirage au sort et création des 8 matchs de 1/8ème de finale (16 joueurs)
+ */
+exports.generateBracket = (req, res) => {
+  const tournament_id = req.params.id;
+
+  // 1. Récupérer tous les joueurs validés/payés du tournoi
+  const sqlGetPlayers = `
+    SELECT player_id 
+    FROM tournament_players 
+    WHERE tournament_id = ? AND payment_status = 'paid'
+  `;
+
+  db.query(sqlGetPlayers, [tournament_id], (err, players) => {
+    if (err) {
+      console.error("Erreur récupération joueurs :", err);
+      return res.status(500).json(err);
+    }
+
+    if (players.length < 16) {
+      return res.status(400).json({
+        message: `Impossible de générer le bracket. Il faut 16 joueurs payés (actuellement : ${players.length}/16).`
+      });
+    }
+
+    // Vérifier si des matchs existent déjà
+    db.query("SELECT COUNT(*) AS count FROM matches WHERE tournament_id = ?", [tournament_id], (err, matchCheck) => {
+      if (err) return res.status(500).json(err);
+
+      if (matchCheck[0].count > 0) {
+        return res.status(400).json({
+          message: "Le bracket a déjà été généré pour ce tournoi !"
+        });
+      }
+
+      // 2. Mélanger aléatoirement les 16 joueurs
+      const shuffledPlayers = [...players];
+      for (let i = shuffledPlayers.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledPlayers[i], shuffledPlayers[j]] = [shuffledPlayers[j], shuffledPlayers[i]];
+      }
+
+      // 3. Préparer les 8 matchs
+      const matchesToInsert = [];
+      for (let i = 0; i < 16; i += 2) {
+        matchesToInsert.push([
+          tournament_id,
+          shuffledPlayers[i].player_id,
+          shuffledPlayers[i + 1].player_id,
+          "round_of_16",
+          "pending"
+        ]);
+      }
+
+      // 4. Insérer dans la table 'matches'
+      const sqlInsertMatches = `
+        INSERT INTO matches (tournament_id, player_one, player_two, round, status)
+        VALUES ?
+      `;
+
+      db.query(sqlInsertMatches, [matchesToInsert], (err) => {
+        if (err) {
+          console.error("Erreur insertion matchs :", err);
+          return res.status(500).json(err);
+        }
+
+        // 5. Mettre à jour le statut du tournoi
+        db.query("UPDATE tournaments SET status = 'in_progress' WHERE id = ?", [tournament_id], (err) => {
+          if (err) return res.status(500).json(err);
+
+          res.json({
+            message: "🏆 Bracket généré avec succès ! 8 matchs créés pour les 1/8ème de finale."
+          });
+        });
+      });
+    });
   });
 };
 

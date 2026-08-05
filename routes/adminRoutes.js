@@ -45,6 +45,13 @@ router.post(
   adminController.createTestPlayers
 );
 
+// 🏆 Génération automatique du Bracket (1/8ème de finale)
+router.post(
+  "/tournament/:id/generate-bracket",
+  adminAuth,
+  adminController.generateBracket
+);
+
 router.put(
   "/ban/:id",
   adminAuth,
