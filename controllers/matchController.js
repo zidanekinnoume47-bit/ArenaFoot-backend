@@ -115,12 +115,6 @@ exports.generateMatches = (req, res) => {
                 }
 
                 const firstId = result.insertId;
-
-                // Assigner intelligemment les next_match_id par calcul de position directe en BDD
-                // 8e (id: firstId à firstId+7) -> Quarts (id: firstId+8 à firstId+11)
-                // Quarts (id: firstId+8 à firstId+11) -> Demis (id: firstId+12 à firstId+13)
-                // Demis (id: firstId+12 à firstId+13) -> Finale (id: firstId+14)
-
                 const updateLinksQueries = [];
 
                 for (let pos = 1; pos <= 8; pos++) {
@@ -257,7 +251,7 @@ exports.getPlayerNextMatch = (req, res) => {
 };
 
 // ==================================
-// Terminer un match
+// Terminer un match (TOTALEMENT FLEXIBLE & DYNAMIQUE)
 // ==================================
 exports.finishMatch = (req, res) => {
     const { match_id, winner, score } = req.body;
@@ -307,19 +301,41 @@ exports.finishMatch = (req, res) => {
                 return;
             }
 
-            // Qualification automatique au tour suivant
-            if (match.next_match_id) {
-                const sql = match.next_slot === 1
+            // Qualification dynamique indépendante de l'ordre de fin des matchs
+            let nextRound;
+            let targetPosition = Math.ceil(match.position / 2);
+            let slot = (match.position % 2 === 1) ? 1 : 2;
+
+            if (match.round === "Huitième de finale") nextRound = "Quart de finale";
+            else if (match.round === "Quart de finale") nextRound = "Demi-finale";
+            else if (match.round === "Demi-finale") nextRound = "Finale";
+
+            const findNextSql = `
+                SELECT id FROM matches 
+                WHERE tournament_id = ? AND round = ? AND position = ?
+                LIMIT 1
+            `;
+
+            db.query(findNextSql, [match.tournament_id, nextRound, targetPosition], (err, nextRes) => {
+                if (err || nextRes.length === 0) {
+                    console.log("Erreur recherche match suivant :", err);
+                    return res.json({ message: "Match terminé, mais impossible de localiser le match suivant." });
+                }
+
+                const nextMatchId = nextRes[0].id;
+                const updateNextSql = slot === 1
                     ? `UPDATE matches SET player_one = ? WHERE id = ?`
                     : `UPDATE matches SET player_two = ? WHERE id = ?`;
 
-                db.query(sql, [winner, match.next_match_id], (error) => {
-                    if (error) return res.status(500).json(error);
-                    res.json({ message: "Match terminé, joueur qualifié pour le tour suivant !" });
+                db.query(updateNextSql, [winner, nextMatchId], (error) => {
+                    if (error) {
+                        console.log("Erreur qualification match suivant :", error);
+                        return res.status(500).json(error);
+                    }
+
+                    res.json({ message: "Match terminé, vainqueur qualifié pour le tour suivant !" });
                 });
-            } else {
-                res.json({ message: "Match terminé" });
-            }
+            });
         });
     });
 };
