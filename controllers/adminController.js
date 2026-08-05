@@ -23,26 +23,61 @@ exports.tournaments = (req, res) => {
   });
 };
 
-// Valider un paiement
+/**
+ * VALIDER UN PAIEMENT / RECOMPENSE ET RELANCER AUTOMATIQUEMENT LE TOURNOI
+ */
 exports.validatePayment = (req, res) => {
   const id = req.params.id;
 
-  db.query(
-    `
-    UPDATE payments
-    SET status='success'
-    WHERE id=?
-    `,
-    [id],
-    (err) => {
-      if (err) {
-        return res.status(500).json(err);
+  // 1. Récupérer les infos du paiement (pour savoir si c'est une récompense ou un paiement d'inscription)
+  db.query("SELECT * FROM payments WHERE id = ?", [id], (err, paymentResult) => {
+    if (err) return res.status(500).json(err);
+
+    // Si on valide un paiement de récompense (par exemple les 40000 FCFA de gain final)
+    // On met le paiement à 'success'
+    db.query(
+      `UPDATE payments SET status='success' WHERE id=?`,
+      [id],
+      (err) => {
+        if (err) return res.status(500).json(err);
+
+        // Si ce paiement est lié à un tournoi, on cherche le tournoi concerné pour effectuer la réinitialisation complète
+        const tournament_id = paymentResult[0]?.tournament_id;
+
+        if (tournament_id) {
+          // 2. Réinitialisation complète du tournoi (vider joueurs, matchs, paiements, récompenses, status -> open)
+          db.query("DELETE FROM tournament_players WHERE tournament_id = ?", [tournament_id], (err) => {
+            if (err) console.log("Erreur suppression tournament_players :", err);
+
+            db.query("DELETE FROM matches WHERE tournament_id = ?", [tournament_id], (err) => {
+              if (err) console.log("Erreur suppression matches :", err);
+
+              db.query("DELETE FROM payments WHERE tournament_id = ? AND id != ?", [tournament_id, id], (err) => {
+                if (err) console.log("Erreur suppression payments :", err);
+
+                db.query("DELETE FROM rewards WHERE tournament_id = ?", [tournament_id], (err) => {
+                  if (err) console.log("Erreur suppression rewards :", err);
+
+                  // Remettre le tournoi à l'état initial ouvert (0/16)
+                  db.query("UPDATE tournaments SET status = 'open' WHERE id = ?", [tournament_id], (err) => {
+                    if (err) console.log("Erreur reset statut tournoi :", err);
+
+                    return res.json({
+                      message: "🏆 Paiement validé avec succès ! Le tournoi a été automatiquement réinitialisé (0/16 joueurs, prêt pour une nouvelle édition)."
+                    });
+                  });
+                });
+              });
+            });
+          });
+        } else {
+          res.json({
+            message: "Paiement validé avec succès"
+          });
+        }
       }
-      res.json({
-        message: "Paiement validé"
-      });
-    }
-  );
+    );
+  });
 };
 
 /**
@@ -127,7 +162,6 @@ exports.createTestPlayers = (req, res) => {
 exports.generateBracket = (req, res) => {
   const tournament_id = req.params.id;
 
-  // 1. Récupérer tous les joueurs validés/payés du tournoi
   const sqlGetPlayers = `
     SELECT player_id 
     FROM tournament_players 
@@ -146,7 +180,6 @@ exports.generateBracket = (req, res) => {
       });
     }
 
-    // Vérifier si des matchs existent déjà
     db.query("SELECT COUNT(*) AS count FROM matches WHERE tournament_id = ?", [tournament_id], (err, matchCheck) => {
       if (err) return res.status(500).json(err);
 
@@ -156,14 +189,12 @@ exports.generateBracket = (req, res) => {
         });
       }
 
-      // 2. Mélanger aléatoirement les 16 joueurs
       const shuffledPlayers = [...players];
       for (let i = shuffledPlayers.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [shuffledPlayers[i], shuffledPlayers[j]] = [shuffledPlayers[j], shuffledPlayers[i]];
       }
 
-      // 3. Préparer les 8 matchs
       const matchesToInsert = [];
       for (let i = 0; i < 16; i += 2) {
         matchesToInsert.push([
@@ -175,7 +206,6 @@ exports.generateBracket = (req, res) => {
         ]);
       }
 
-      // 4. Insérer dans la table 'matches'
       const sqlInsertMatches = `
         INSERT INTO matches (tournament_id, player_one, player_two, round, status)
         VALUES ?
@@ -187,7 +217,6 @@ exports.generateBracket = (req, res) => {
           return res.status(500).json(err);
         }
 
-        // 5. Mettre à jour le statut du tournoi
         db.query("UPDATE tournaments SET status = 'in_progress' WHERE id = ?", [tournament_id], (err) => {
           if (err) return res.status(500).json(err);
 
