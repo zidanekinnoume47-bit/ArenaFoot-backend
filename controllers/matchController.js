@@ -257,86 +257,131 @@ exports.finishMatch = (req, res) => {
     const { match_id, winner, score } = req.body;
 
     if (!match_id || !winner || !score) {
-        return res.status(400).json({ message: "Informations match incomplètes" });
+        return res.status(400).json({
+            message: "Informations match incomplètes"
+        });
     }
 
     Match.getById(match_id, (err, result) => {
+
         if (err) return res.status(500).json(err);
-        if (result.length === 0) return res.status(404).json({ message: "Match introuvable" });
+
+        if (result.length === 0) {
+            return res.status(404).json({
+                message: "Match introuvable"
+            });
+        }
 
         const match = result[0];
 
-        Match.updateWinner({ match_id, winner, score }, (err) => {
-            if (err) return res.status(500).json(err);
+        Match.updateWinner(
+            {
+                match_id,
+                winner,
+                score
+            },
+            (err) => {
 
-            // Si c'est la Finale
-            if (match.round === "Finale") {
-                db.query(`SELECT reward FROM tournaments WHERE id = ?`, [match.tournament_id], (error, tournament) => {
-                    if (error) return res.status(500).json(error);
+                if (err) return res.status(500).json(err);
 
-                    const reward = tournament[0].reward;
+                // ===============================
+                // FINALE
+                // ===============================
 
-                    db.query(`UPDATE tournaments SET winner_id = ?, status = 'finished' WHERE id = ?`, [winner, match.tournament_id], (error) => {
-                        if (error) return res.status(500).json(error);
+                if (match.round === "Finale") {
 
-                        db.query(`SELECT payment_phone FROM users WHERE id = ?`, [winner], (error, user) => {
-                            if (error) return res.status(500).json(error);
+                    db.query(
+                        "SELECT reward FROM tournaments WHERE id = ?",
+                        [match.tournament_id],
+                        (err, tournament) => {
 
-                            if (!user.length || !user[0].payment_phone) {
-                                return res.status(400).json({ message: "Le gagnant n'a pas configuré son numéro de paiement" });
-                            }
+                            if (err) return res.status(500).json(err);
 
-                            Reward.create({
-                                tournament_id: match.tournament_id,
-                                player_id: winner,
-                                amount: reward,
-                                phone: user[0].payment_phone
-                            }, (err) => {
-                                if (err) return res.status(500).json(err);
-                                return res.json({ message: "🏆 Finale terminée ! Récompense créée avec succès." });
-                            });
-                        });
-                    });
-                });
-                return;
-            }
+                            const reward = tournament[0].reward;
 
-            // Qualification dynamique indépendante de l'ordre de fin des matchs
-            let nextRound;
-            let targetPosition = Math.ceil(match.position / 2);
-            let slot = (match.position % 2 === 1) ? 1 : 2;
+                            db.query(
+                                "UPDATE tournaments SET winner_id=?, status='finished' WHERE id=?",
+                                [winner, match.tournament_id],
+                                (err) => {
 
-            if (match.round === "Huitième de finale") nextRound = "Quart de finale";
-            else if (match.round === "Quart de finale") nextRound = "Demi-finale";
-            else if (match.round === "Demi-finale") nextRound = "Finale";
+                                    if (err) return res.status(500).json(err);
 
-            const findNextSql = `
-                SELECT id FROM matches 
-                WHERE tournament_id = ? AND round = ? AND position = ?
-                LIMIT 1
-            `;
+                                    db.query(
+                                        "SELECT payment_phone FROM users WHERE id=?",
+                                        [winner],
+                                        (err, user) => {
 
-            db.query(findNextSql, [match.tournament_id, nextRound, targetPosition], (err, nextRes) => {
-                if (err || nextRes.length === 0) {
-                    console.log("Erreur recherche match suivant :", err);
-                    return res.json({ message: "Match terminé, mais impossible de localiser le match suivant." });
+                                            if (err) return res.status(500).json(err);
+
+                                            Reward.create(
+                                                {
+                                                    tournament_id: match.tournament_id,
+                                                    player_id: winner,
+                                                    amount: reward,
+                                                    phone: user[0].payment_phone
+                                                },
+                                                (err) => {
+
+                                                    if (err) return res.status(500).json(err);
+
+                                                    return res.json({
+                                                        message: "🏆 Tournoi terminé !"
+                                                    });
+
+                                                }
+                                            );
+
+                                        }
+                                    );
+
+                                }
+                            );
+
+                        }
+                    );
+
+                    return;
                 }
 
-                const nextMatchId = nextRes[0].id;
-                const updateNextSql = slot === 1
-                    ? `UPDATE matches SET player_one = ? WHERE id = ?`
-                    : `UPDATE matches SET player_two = ? WHERE id = ?`;
+                // ==================================
+                // QUALIFICATION AU TOUR SUIVANT
+                // ==================================
 
-                db.query(updateNextSql, [winner, nextMatchId], (error) => {
-                    if (error) {
-                        console.log("Erreur qualification match suivant :", error);
-                        return res.status(500).json(error);
+                if (!match.next_match_id) {
+
+                    return res.json({
+                        message: "Aucun match suivant."
+                    });
+
+                }
+
+                const sql =
+                    match.next_slot === 1
+                        ? "UPDATE matches SET player_one=? WHERE id=?"
+                        : "UPDATE matches SET player_two=? WHERE id=?";
+
+                db.query(
+                    sql,
+                    [
+                        winner,
+                        match.next_match_id
+                    ],
+                    (err) => {
+
+                        if (err) {
+                            return res.status(500).json(err);
+                        }
+
+                        return res.json({
+                            message: "🏆 Vainqueur qualifié pour le tour suivant."
+                        });
+
                     }
+                );
 
-                    res.json({ message: "Match terminé, vainqueur qualifié pour le tour suivant !" });
-                });
-            });
-        });
+            }
+        );
+
     });
 };
 
