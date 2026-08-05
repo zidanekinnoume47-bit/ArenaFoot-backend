@@ -7,56 +7,25 @@ const Reward = require("../models/Reward");
 // ==================================
 const resetTournament = (tournamentId, callback) => {
     db.query(
-        `
-        DELETE FROM rooms
-        WHERE match_id IN (
-            SELECT id
-            FROM matches
-            WHERE tournament_id = ?
-        )
-        `,
+        `DELETE FROM rooms WHERE match_id IN (SELECT id FROM matches WHERE tournament_id = ?)`,
         [tournamentId],
         (err) => {
             if (err) return callback(err);
-
-            db.query(
-                `
-                DELETE FROM matches
-                WHERE tournament_id = ?
-                `,
-                [tournamentId],
-                (err) => {
+            db.query(`DELETE FROM matches WHERE tournament_id = ?`, [tournamentId], (err) => {
+                if (err) return callback(err);
+                db.query(`DELETE FROM tournament_players WHERE tournament_id = ?`, [tournamentId], (err) => {
                     if (err) return callback(err);
-
                     db.query(
-                        `
-                        DELETE FROM tournament_players
-                        WHERE tournament_id = ?
-                        `,
+                        `UPDATE tournaments SET status='open', winner_id=NULL WHERE id=?`,
                         [tournamentId],
-                        (err) => {
-                            if (err) return callback(err);
-
-                            db.query(
-                                `
-                                UPDATE tournaments
-                                SET
-                                    status='open',
-                                    winner_id=NULL
-                                WHERE id=?
-                                `,
-                                [tournamentId],
-                                callback
-                            );
-                        }
+                        callback
                     );
-                }
-            );
+                });
+            });
         }
     );
 };
 
-// Fonction utilitaire pour mélanger le tableau de joueurs
 const shuffleArray = (array) => {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -69,387 +38,287 @@ const shuffleArray = (array) => {
 // Générer les matchs d'un tournoi
 // ==================================
 exports.generateMatches = (req, res) => {
-const tournament_id = req.params.id;
+    const tournament_id = req.params.id;
 
-const checkSql = `
-SELECT id
-FROM matches
-WHERE tournament_id = ?
-LIMIT 1
-`;
+    const checkSql = `SELECT id FROM matches WHERE tournament_id = ? LIMIT 1`;
 
-db.query(
-checkSql,
-[tournament_id],
-(err, exists)=>{
-if(err){
-return res.status(500).json(err);
-}
+    db.query(checkSql, [tournament_id], (err, exists) => {
+        if (err) return res.status(500).json(err);
+        if (exists.length > 0) {
+            return res.json({ message: "Bracket déjà généré" });
+        }
 
-if(exists.length > 0){
-return res.json({
-message:"Bracket déjà généré"
-});
-}
+        const sql = `SELECT player_id FROM tournament_players WHERE tournament_id = ? AND payment_status = 'paid'`;
 
-const sql = `
-SELECT player_id
-FROM tournament_players
-WHERE tournament_id = ?
-AND payment_status = 'paid'
-`;
+        db.query(sql, [tournament_id], (err, players) => {
+            if (err) return res.status(500).json(err);
 
-db.query(
-sql,
-[tournament_id],
-(err,players)=>{
-if(err){
-return res.status(500).json(err);
-}
-
-if(players.length !== 16){
-return res.status(400).json({
-message:`Le tournoi nécessite exactement 16 joueurs payés (actuellement : ${players.length})`
-});
-}
-
-const shuffledPlayers = shuffleArray([...players])
-.map(player=>player.player_id);
-
-let matches = [];
-
-// Huitième de finale (8 matchs)
-for(let i=0;i<16;i+=2){
-matches.push({
-tournament_id,
-player_one:shuffledPlayers[i],
-player_two:shuffledPlayers[i+1],
-round:"Huitième de finale",
-position:(i/2)+1
-});
-}
-
-// Quart de finale (4 matchs)
-for(let i=1;i<=4;i++){
-matches.push({
-tournament_id,
-player_one:null,
-player_two:null,
-round:"Quart de finale",
-position:i
-});
-}
-
-// Demi-finale (2 matchs)
-for(let i=1;i<=2;i++){
-matches.push({
-tournament_id,
-player_one:null,
-player_two:null,
-round:"Demi-finale",
-position:i
-});
-}
-
-// Finale (1 match)
-matches.push({
-tournament_id,
-player_one:null,
-player_two:null,
-round:"Finale",
-position:1
-});
-
-Match.createMultiple(matches, (err, result) => {
-    if (err) {
-        console.log(err);
-        return res.status(500).json(err);
-    }
-
-    const firstId = result.insertId;
-
-    // Association logique des liens d'arbre de tournoi
-    const links = [
-        [firstId, firstId + 8, 1],
-        [firstId + 1, firstId + 8, 2],
-
-        [firstId + 2, firstId + 9, 1],
-        [firstId + 3, firstId + 9, 2],
-
-        [firstId + 4, firstId + 10, 1],
-        [firstId + 5, firstId + 10, 2],
-
-        [firstId + 6, firstId + 11, 1],
-        [firstId + 7, firstId + 11, 2],
-
-        [firstId + 8, firstId + 12, 1],
-        [firstId + 9, firstId + 12, 2],
-
-        [firstId + 10, firstId + 13, 1],
-        [firstId + 11, firstId + 13, 2],
-
-        [firstId + 12, firstId + 14, 1],
-        [firstId + 13, firstId + 14, 2]
-    ];
-
-    let completed = 0;
-
-    links.forEach(([matchId, nextMatchId, nextSlot]) => {
-        db.query(
-            `
-            UPDATE matches
-            SET
-                next_match_id = ?,
-                next_slot = ?
-            WHERE id = ?
-            `,
-            [nextMatchId, nextSlot, matchId],
-            (error) => {
-                if (error) {
-                    console.log(error);
-                }
-                completed++;
-                if (completed === links.length) {
-                    res.status(201).json({
-                        message: "Bracket complet créé 🏆",
-                        matches_created: matches.length
-                    });
-                }
+            if (players.length !== 16) {
+                return res.status(400).json({
+                    message: `Le tournoi nécessite exactement 16 joueurs payés (actuellement : ${players.length})`
+                });
             }
-        );
+
+            const shuffledPlayers = shuffleArray([...players]).map(player => player.player_id);
+            let matches = [];
+
+            // 1. Huitième de finale (8 matchs, positions 1 à 8)
+            for (let i = 0; i < 16; i += 2) {
+                matches.push({
+                    tournament_id,
+                    player_one: shuffledPlayers[i],
+                    player_two: shuffledPlayers[i+1],
+                    round: "Huitième de finale",
+                    position: (i/2) + 1,
+                    next_slot: ((i/2) % 2 === 0) ? 1 : 2
+                });
+            }
+
+            // 2. Quart de finale (4 matchs, positions 1 à 4)
+            for (let i = 1; i <= 4; i++) {
+                matches.push({
+                    tournament_id,
+                    player_one: null,
+                    player_two: null,
+                    round: "Quart de finale",
+                    position: i,
+                    next_slot: (i % 2 === 0) ? 2 : 1
+                });
+            }
+
+            // 3. Demi-finale (2 matchs, positions 1 à 2)
+            for (let i = 1; i <= 2; i++) {
+                matches.push({
+                    tournament_id,
+                    player_one: null,
+                    player_two: null,
+                    round: "Demi-finale",
+                    position: i,
+                    next_slot: (i % 2 === 0) ? 2 : 1
+                });
+            }
+
+            // 4. Finale (1 match)
+            matches.push({
+                tournament_id,
+                player_one: null,
+                player_two: null,
+                round: "Finale",
+                position: 1,
+                next_slot: null
+            });
+
+            Match.createMultiple(matches, (err, result) => {
+                if (err) {
+                    console.log(err);
+                    return res.status(500).json(err);
+                }
+
+                const firstId = result.insertId;
+
+                // Assigner intelligemment les next_match_id par calcul de position directe en BDD
+                // 8e (id: firstId à firstId+7) -> Quarts (id: firstId+8 à firstId+11)
+                // Quarts (id: firstId+8 à firstId+11) -> Demis (id: firstId+12 à firstId+13)
+                // Demis (id: firstId+12 à firstId+13) -> Finale (id: firstId+14)
+
+                const updateLinksQueries = [];
+
+                for (let pos = 1; pos <= 8; pos++) {
+                    const currentMatchDbId = firstId + (pos - 1);
+                    const targetQuarterPos = Math.ceil(pos / 2);
+                    const targetQuarterDbId = firstId + 7 + targetQuarterPos;
+                    const slot = (pos % 2 === 1) ? 1 : 2;
+
+                    updateLinksQueries.push(new Promise((resolve, reject) => {
+                        db.query(
+                            `UPDATE matches SET next_match_id = ?, next_slot = ? WHERE id = ?`,
+                            [targetQuarterDbId, slot, currentMatchDbId],
+                            (err) => err ? reject(err) : resolve()
+                        );
+                    }));
+                }
+
+                for (let pos = 1; pos <= 4; pos++) {
+                    const currentQuarterDbId = firstId + 7 + pos;
+                    const targetSemiPos = Math.ceil(pos / 2);
+                    const targetSemiDbId = firstId + 11 + targetSemiPos;
+                    const slot = (pos % 2 === 1) ? 1 : 2;
+
+                    updateLinksQueries.push(new Promise((resolve, reject) => {
+                        db.query(
+                            `UPDATE matches SET next_match_id = ?, next_slot = ? WHERE id = ?`,
+                            [targetSemiDbId, slot, currentQuarterDbId],
+                            (err) => err ? reject(err) : resolve()
+                        );
+                    }));
+                }
+
+                for (let pos = 1; pos <= 2; pos++) {
+                    const currentSemiDbId = firstId + 11 + pos;
+                    const targetFinalDbId = firstId + 14;
+                    const slot = (pos % 2 === 1) ? 1 : 2;
+
+                    updateLinksQueries.push(new Promise((resolve, reject) => {
+                        db.query(
+                            `UPDATE matches SET next_match_id = ?, next_slot = ? WHERE id = ?`,
+                            [targetFinalDbId, slot, currentSemiDbId],
+                            (err) => err ? reject(err) : resolve()
+                        );
+                    }));
+                }
+
+                Promise.all(updateLinksQueries)
+                    .then(() => {
+                        res.status(201).json({
+                            message: "Bracket complet et liens créés avec succès par position 🏆",
+                            matches_created: matches.length
+                        });
+                    })
+                    .catch((error) => {
+                        console.log("Erreur liaison links :", error);
+                        res.status(500).json({ error: "Erreur lors de la liaison des tours du bracket" });
+                    });
+            });
+        });
     });
-});
-}
-);
-}
-);
 };
 
 // ==================================
 // Récupérer les matchs d'un tournoi
 // ==================================
-exports.getTournamentMatches = (req,res)=>{
-const tournament_id = req.params.id;
-
-Match.getTournamentMatches(
-tournament_id,
-(err,result)=>{
-if(err){
-console.log("ERREUR SQL MATCH :",err);
-return res.status(500).json(err);
-}
-res.json(result);
-}
-);
+exports.getTournamentMatches = (req, res) => {
+    const tournament_id = req.params.id;
+    Match.getTournamentMatches(tournament_id, (err, result) => {
+        if (err) return res.status(500).json(err);
+        res.json(result);
+    });
 };
 
 // ==================================
 // Récupérer le bracket complet
 // ==================================
-exports.getBracket = (req,res)=>{
-const tournament_id = req.params.id;
-
-const sql = `
-SELECT
-matches.id,
-matches.tournament_id,
-matches.round,
-matches.player_one,
-matches.player_two,
-matches.winner,
-matches.score,
-matches.status,
-matches.next_match_id,
-
-u1.pseudo AS player_one_name,
-u2.pseudo AS player_two_name
-
-FROM matches
-
-LEFT JOIN users u1
-ON matches.player_one = u1.id
-
-LEFT JOIN users u2
-ON matches.player_two = u2.id
-
-WHERE matches.tournament_id = ?
-
-ORDER BY matches.id ASC
-`;
-
-db.query(
-sql,
-[tournament_id],
-(err,result)=>{
-if(err){
-console.log("ERREUR SQL BRACKET :",err);
-return res.status(500).json(err);
-}
-res.json(result);
-}
-);
+exports.getBracket = (req, res) => {
+    const tournament_id = req.params.id;
+    const sql = `
+        SELECT
+            matches.id,
+            matches.tournament_id,
+            matches.round,
+            matches.player_one,
+            matches.player_two,
+            matches.winner,
+            matches.score,
+            matches.status,
+            matches.next_match_id,
+            u1.pseudo AS player_one_name,
+            u2.pseudo AS player_two_name
+        FROM matches
+        LEFT JOIN users u1 ON matches.player_one = u1.id
+        LEFT JOIN users u2 ON matches.player_two = u2.id
+        WHERE matches.tournament_id = ?
+        ORDER BY matches.id ASC
+    `;
+    db.query(sql, [tournament_id], (err, result) => {
+        if (err) return res.status(500).json(err);
+        res.json(result);
+    });
 };
 
 // ==================================
 // Prochain match d'un joueur
 // ==================================
-exports.getPlayerNextMatch = (req,res)=>{
-const player_id = req.params.id;
-
-const sql = `
-SELECT
-matches.id,
-matches.tournament_id,
-matches.round,
-matches.player_one,
-matches.player_two,
-matches.status,
-matches.score,
-
-u1.pseudo AS player_one_name,
-u2.pseudo AS player_two_name
-
-FROM matches
-
-LEFT JOIN users u1
-ON matches.player_one = u1.id
-
-LEFT JOIN users u2
-ON matches.player_two = u2.id
-
-WHERE 
-(matches.player_one = ?
-OR matches.player_two = ?)
-
-AND matches.status = 'pending'
-AND matches.winner IS NULL
-
-ORDER BY matches.id ASC
-
-LIMIT 1
-`;
-
-db.query(
-sql,
-[player_id, player_id],
-(err,result)=>{
-if(err){
-console.log("ERREUR NEXT MATCH :", err);
-return res.status(500).json(err);
-}
-
-if(result.length === 0){
-return res.json(null);
-}
-
-res.json(result[0]);
-}
-);
+exports.getPlayerNextMatch = (req, res) => {
+    const player_id = req.params.id;
+    const sql = `
+        SELECT
+            matches.id,
+            matches.tournament_id,
+            matches.round,
+            matches.player_one,
+            matches.player_two,
+            matches.status,
+            matches.score,
+            u1.pseudo AS player_one_name,
+            u2.pseudo AS player_two_name
+        FROM matches
+        LEFT JOIN users u1 ON matches.player_one = u1.id
+        LEFT JOIN users u2 ON matches.player_two = u2.id
+        WHERE (matches.player_one = ? OR matches.player_two = ?)
+        AND matches.status = 'pending'
+        AND matches.winner IS NULL
+        ORDER BY matches.id ASC
+        LIMIT 1
+    `;
+    db.query(sql, [player_id, player_id], (err, result) => {
+        if (err) return res.status(500).json(err);
+        if (result.length === 0) return res.json(null);
+        res.json(result[0]);
+    });
 };
 
 // ==================================
 // Terminer un match
 // ==================================
 exports.finishMatch = (req, res) => {
-    console.log("FINISH MATCH APPELÉ", req.body);
-
     const { match_id, winner, score } = req.body;
 
-    if(!match_id || !winner || !score){
-        return res.status(400).json({
-            message: "Informations match incomplètes"
-        });
+    if (!match_id || !winner || !score) {
+        return res.status(400).json({ message: "Informations match incomplètes" });
     }
 
     Match.getById(match_id, (err, result) => {
-        if(err) return res.status(500).json(err);
-        if(result.length === 0) return res.status(404).json({ message: "Match introuvable" });
+        if (err) return res.status(500).json(err);
+        if (result.length === 0) return res.status(404).json({ message: "Match introuvable" });
 
         const match = result[0];
 
         Match.updateWinner({ match_id, winner, score }, (err) => {
-            if(err) return res.status(500).json(err);
+            if (err) return res.status(500).json(err);
 
             // Si c'est la Finale
             if (match.round === "Finale") {
-                db.query(
-                    `SELECT reward FROM tournaments WHERE id = ?`,
-                    [match.tournament_id],
-                    (error, tournament) => {
+                db.query(`SELECT reward FROM tournaments WHERE id = ?`, [match.tournament_id], (error, tournament) => {
+                    if (error) return res.status(500).json(error);
+
+                    const reward = tournament[0].reward;
+
+                    db.query(`UPDATE tournaments SET winner_id = ?, status = 'finished' WHERE id = ?`, [winner, match.tournament_id], (error) => {
                         if (error) return res.status(500).json(error);
 
-                        const reward = tournament[0].reward;
+                        db.query(`SELECT payment_phone FROM users WHERE id = ?`, [winner], (error, user) => {
+                            if (error) return res.status(500).json(error);
 
-                        db.query(
-                            `UPDATE tournaments SET winner_id = ?, status = 'finished' WHERE id = ?`,
-                            [winner, match.tournament_id],
-                            (error) => {
-                                if (error) return res.status(500).json(error);
-
-                                db.query(
-                                    `SELECT payment_phone FROM users WHERE id = ?`,
-                                    [winner],
-                                    (error, user) => {
-                                        if (error) return res.status(500).json(error);
-
-                                        if (!user.length || !user[0].payment_phone) {
-                                            return res.status(400).json({
-                                                message: "Le gagnant n'a pas configuré son numéro de paiement"
-                                            });
-                                        }
-
-                                        Reward.create(
-                                            {
-                                                tournament_id: match.tournament_id,
-                                                player_id: winner,
-                                                amount: reward,
-                                                phone: user[0].payment_phone
-                                            },
-                                            (err) => {
-                                                if (err) {
-                                                    console.log("ERREUR REWARD :", err);
-                                                    return res.status(500).json(err);
-                                                }
-
-                                                console.log("✅ Récompense créée");
-
-                                                // Note : Le tournoi se réinitialisera automatiquement 
-                                                // quand l'admin validera le paiement de la récompense dans le dashboard admin.
-                                                return res.json({
-                                                    message: "🏆 Finale terminée ! Récompense créée avec succès."
-                                                });
-                                            }
-                                        );
-                                    }
-                                );
+                            if (!user.length || !user[0].payment_phone) {
+                                return res.status(400).json({ message: "Le gagnant n'a pas configuré son numéro de paiement" });
                             }
-                        );
-                    }
-                );
+
+                            Reward.create({
+                                tournament_id: match.tournament_id,
+                                player_id: winner,
+                                amount: reward,
+                                phone: user[0].payment_phone
+                            }, (err) => {
+                                if (err) return res.status(500).json(err);
+                                return res.json({ message: "🏆 Finale terminée ! Récompense créée avec succès." });
+                            });
+                        });
+                    });
+                });
                 return;
             }
 
-            // Si ce n'est pas la finale, qualifier automatiquement le vainqueur au match suivant
+            // Qualification automatique au tour suivant
             if (match.next_match_id) {
-                const sql =
-                    match.next_slot === 1
-                        ? `UPDATE matches SET player_one = ? WHERE id = ?`
-                        : `UPDATE matches SET player_two = ? WHERE id = ?`;
+                const sql = match.next_slot === 1
+                    ? `UPDATE matches SET player_one = ? WHERE id = ?`
+                    : `UPDATE matches SET player_two = ? WHERE id = ?`;
 
                 db.query(sql, [winner, match.next_match_id], (error) => {
-                    if (error) {
-                        console.log("ERREUR QUALIFICATION SUIVANTE :", error);
-                        return res.status(500).json(error);
-                    }
-
-                    res.json({
-                        message: "Match terminé, joueur qualifié pour le tour suivant !"
-                    });
+                    if (error) return res.status(500).json(error);
+                    res.json({ message: "Match terminé, joueur qualifié pour le tour suivant !" });
                 });
             } else {
-                res.json({
-                    message: "Match terminé"
-                });
+                res.json({ message: "Match terminé" });
             }
         });
     });
@@ -460,40 +329,24 @@ exports.finishMatch = (req, res) => {
 // ==================================
 exports.getAllMatches = (req, res) => {
     const sql = `
-    SELECT
-        matches.id,
-        matches.round,
-        matches.score,
-        matches.status,
-
-        u1.pseudo AS player_one_name,
-        u2.pseudo AS player_two_name,
-
-        uw.pseudo AS winner_name,
-
-        tournaments.name AS tournament_name
-
-    FROM matches
-
-    LEFT JOIN users u1
-    ON matches.player_one = u1.id
-
-    LEFT JOIN users u2
-    ON matches.player_two = u2.id
-
-    LEFT JOIN users uw
-    ON matches.winner = uw.id
-
-    LEFT JOIN tournaments
-    ON matches.tournament_id = tournaments.id
-
-    ORDER BY matches.id DESC
+        SELECT
+            matches.id,
+            matches.round,
+            matches.score,
+            matches.status,
+            u1.pseudo AS player_one_name,
+            u2.pseudo AS player_two_name,
+            uw.pseudo AS winner_name,
+            tournaments.name AS tournament_name
+        FROM matches
+        LEFT JOIN users u1 ON matches.player_one = u1.id
+        LEFT JOIN users u2 ON matches.player_two = u2.id
+        LEFT JOIN users uw ON matches.winner = uw.id
+        LEFT JOIN tournaments ON matches.tournament_id = tournaments.id
+        ORDER BY matches.id DESC
     `;
-
     db.query(sql, (err, result) => {
-        if (err) {
-            return res.status(500).json(err);
-        }
+        if (err) return res.status(500).json(err);
         res.json(result);
     });
 };
