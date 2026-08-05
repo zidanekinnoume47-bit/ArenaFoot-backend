@@ -1,326 +1,454 @@
-import React, { useEffect, useState } from "react";
-import Sidebar from "../components/admin/Sidebar";
-import {
-  getTournaments,
-  deleteTournament,
-  getTournamentPlayers,
-  createTestPlayers,
-  generateBracket
-} from "../service/adminService";
+const db = require("../config/database");
 
-function AdminTournaments() {
-  const [tournaments, setTournaments] = useState([]);
-  const [players, setPlayers] = useState([]);
-  const [matches, setMatches] = useState([]);
-  const [selectedTournament, setSelectedTournament] = useState(null);
-  const [viewMode, setViewMode] = useState(null); // 'players' ou 'bracket'
-  const [loadingTournamentId, setLoadingTournamentId] = useState(null);
-  const [bracketLoadingId, setBracketLoadingId] = useState(null);
+// Voir tous les joueurs
+exports.players = (req, res) => {
+  db.query(
+    "SELECT id,name,pseudo,email,phone,role FROM users",
+    (err, result) => {
+      if (err) return res.status(500).json(err);
+      res.json(result);
+    }
+  );
+};
 
-  useEffect(() => {
-    loadTournaments();
-  }, []);
+// Voir les tournois
+exports.tournaments = (req, res) => {
+  db.query("SELECT * FROM tournaments", (err, result) => {
+    console.log("TOURNOIS :", result);
+    if (err) {
+      console.log(err);
+      return res.status(500).json(err);
+    }
+    res.json(result);
+  });
+};
 
-  const loadTournaments = async () => {
-    const data = await getTournaments();
-    setTournaments(Array.isArray(data) ? data : []);
-  };
+// Valider un paiement
+exports.validatePayment = (req, res) => {
+  const id = req.params.id;
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Supprimer ce tournoi ?")) return;
-    const data = await deleteTournament(id);
-    alert(data.message);
-    loadTournaments();
-  };
+  db.query(
+    `
+    UPDATE payments
+    SET status='success'
+    WHERE id=?
+    `,
+    [id],
+    (err) => {
+      if (err) {
+        return res.status(500).json(err);
+      }
+      res.json({
+        message: "Paiement validé"
+      });
+    }
+  );
+};
 
-  const handlePlayers = async (id) => {
-    console.log("Tournoi :", id);
-    const data = await getTournamentPlayers(id);
-    console.log("JOUEURS :", data);
-    setPlayers(Array.isArray(data) ? data : []);
-    setSelectedTournament(id);
-    setViewMode("players");
-  };
+/**
+ * LOGIQUE DE SIMULATION : Ajouter 15 joueurs de test avec comptes + inscriptions + paiements validés
+ */
+exports.createTestPlayers = (req, res) => {
+  const tournament_id = req.params.id;
+  const timestamp = Date.now();
+  const password = "$2b$10$7EqJtq98hPqEX7fNZaFWoO4O5x4Yz9W5s6QJ7sV4vF6Jz1x9JQ2O6";
 
-  // Charger et afficher les matchs du tournoi
-  const handleShowBracket = async (id) => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(
-        `https://arenafoot-backend-production.up.railway.app/api/admin/tournament/${id}/bracket`,
-        {
-          headers: { Authorization: `Bearer ${token}` }
+  db.query("SELECT entry_fee FROM tournaments WHERE id = ?", [tournament_id], (err, tourneyResult) => {
+    if (err || tourneyResult.length === 0) {
+      return res.status(500).json({ error: "Tournoi introuvable ou erreur SQL" });
+    }
+
+    const entryFee = tourneyResult[0].entry_fee || 0;
+    let addedCount = 0;
+    let errors = 0;
+
+    const insertSinglePlayer = (index) => {
+      if (index > 15) {
+        return res.json({
+          message: `Simulation terminée : ${addedCount} joueurs de test créés et marqués comme 'paid' ! 🏆`
+        });
+      }
+
+      const user = {
+        name: `Test Player ${index}`,
+        pseudo: `TestPlayer_${timestamp}_${index}`,
+        email: `test_${timestamp}_${index}@arenafoot.com`,
+        phone: `97${String(index).padStart(6, '0')}`,
+        efootball_id: `EFOOT_${timestamp}_${index}`,
+        password: password
+      };
+
+      db.query(
+        `INSERT INTO users (name, pseudo, email, phone, efootball_id, password) VALUES (?, ?, ?, ?, ?, ?)`,
+        [user.name, user.pseudo, user.email, user.phone, user.efootball_id, user.password],
+        (err, userRes) => {
+          if (err) {
+            console.error(`Erreur création user ${index}:`, err);
+            errors++;
+            return insertSinglePlayer(index + 1);
+          }
+
+          const newUserId = userRes.insertId;
+
+          db.query(
+            `INSERT INTO tournament_players (tournament_id, player_id, payment_status) VALUES (?, ?, 'paid')`,
+            [tournament_id, newUserId],
+            (err) => {
+              if (err) {
+                console.error(`Erreur inscription tournament_players ${index}:`, err);
+                errors++;
+                return insertSinglePlayer(index + 1);
+              }
+
+              db.query(
+                `INSERT INTO payments (player_id, tournament_id, amount, method, transaction_id, status) VALUES (?, ?, ?, 'TEST_SIMULATION', ?, 'success')`,
+                [newUserId, tournament_id, entryFee, `SIM_TX_${timestamp}_${index}`],
+                (err) => {
+                  if (err) {
+                    console.error(`Erreur création paiement ${index}:`, err);
+                  }
+                  addedCount++;
+                  insertSinglePlayer(index + 1);
+                }
+              );
+            }
+          );
         }
       );
-      const data = await response.json();
-      setMatches(Array.isArray(data) ? data : []);
-      setSelectedTournament(id);
-      setViewMode("bracket");
-    } catch (err) {
-      console.error("Erreur chargement bracket :", err);
-    }
-  };
+    };
 
-  // Fonction pour injecter 15 joueurs de test payés
-  const handleAddTestPlayers = async (tournamentId) => {
-    if (
-      !window.confirm(
-        "Voulez-vous simuler l'ajout de 15 joueurs de test payés pour ce tournoi ?"
-      )
-    ) {
-      return;
-    }
+    insertSinglePlayer(1);
+  });
+};
 
-    setLoadingTournamentId(tournamentId);
+/**
+ * GENERATION DU BRACKET : Tirage au sort et création des 8 matchs de 1/8ème de finale (16 joueurs)
+ */
+exports.generateBracket = (req, res) => {
+  const tournament_id = req.params.id;
 
-    try {
-      const res = await createTestPlayers(tournamentId);
-      alert(res.message || "Joueurs de test ajoutés avec succès ! 🏆");
-      
-      // Recharger la liste des joueurs si ce tournoi était ouvert
-      await handlePlayers(tournamentId);
-      await loadTournaments();
-    } catch (err) {
-      console.error("Erreur simulation :", err);
-      alert("❌ Une erreur est survenue lors de l'ajout des joueurs.");
-    } finally {
-      setLoadingTournamentId(null);
-    }
-  };
+  // 1. Récupérer tous les joueurs validés/payés du tournoi
+  const sqlGetPlayers = `
+    SELECT player_id 
+    FROM tournament_players 
+    WHERE tournament_id = ? AND payment_status = 'paid'
+  `;
 
-  // Fonction pour déclencher la génération automatique du Bracket (16 joueurs)
-  const handleGenerateBracket = async (tournamentId) => {
-    if (
-      !window.confirm(
-        "Générer le tirage au sort et les 8 matchs de 1/8ème de finale pour ce tournoi ?"
-      )
-    ) {
-      return;
+  db.query(sqlGetPlayers, [tournament_id], (err, players) => {
+    if (err) {
+      console.error("Erreur récupération joueurs :", err);
+      return res.status(500).json(err);
     }
 
-    setBracketLoadingId(tournamentId);
+    if (players.length < 16) {
+      return res.status(400).json({
+        message: `Impossible de générer le bracket. Il faut 16 joueurs payés (actuellement : ${players.length}/16).`
+      });
+    }
 
-    try {
-      const res = await generateBracket(tournamentId);
-      if (res.message) {
-        alert(res.message);
-      } else {
-        alert("❌ Impossible de générer le bracket.");
+    // Vérifier si des matchs existent déjà
+    db.query("SELECT COUNT(*) AS count FROM matches WHERE tournament_id = ?", [tournament_id], (err, matchCheck) => {
+      if (err) return res.status(500).json(err);
+
+      if (matchCheck[0].count > 0) {
+        return res.status(400).json({
+          message: "Le bracket a déjà été généré pour ce tournoi !"
+        });
       }
-      await handleShowBracket(tournamentId);
-      loadTournaments();
-    } catch (err) {
-      console.error("Erreur génération bracket :", err);
-      alert("❌ Une erreur est survenue lors de la génération du bracket.");
-    } finally {
-      setBracketLoadingId(null);
+
+      // 2. Mélanger aléatoirement les 16 joueurs
+      const shuffledPlayers = [...players];
+      for (let i = shuffledPlayers.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledPlayers[i], shuffledPlayers[j]] = [shuffledPlayers[j], shuffledPlayers[i]];
+      }
+
+      // 3. Préparer les 8 matchs
+      const matchesToInsert = [];
+      for (let i = 0; i < 16; i += 2) {
+        matchesToInsert.push([
+          tournament_id,
+          shuffledPlayers[i].player_id,
+          shuffledPlayers[i + 1].player_id,
+          "round_of_16",
+          "pending"
+        ]);
+      }
+
+      // 4. Insérer dans la table 'matches'
+      const sqlInsertMatches = `
+        INSERT INTO matches (tournament_id, player_one, player_two, round, status)
+        VALUES ?
+      `;
+
+      db.query(sqlInsertMatches, [matchesToInsert], (err) => {
+        if (err) {
+          console.error("Erreur insertion matchs :", err);
+          return res.status(500).json(err);
+        }
+
+        // 5. Mettre à jour le statut du tournoi
+        db.query("UPDATE tournaments SET status = 'in_progress' WHERE id = ?", [tournament_id], (err) => {
+          if (err) return res.status(500).json(err);
+
+          res.json({
+            message: "🏆 Bracket généré avec succès ! 8 matchs créés pour les 1/8ème de finale."
+          });
+        });
+      });
+    });
+  });
+};
+
+/**
+ * AFFICHER LE BRACKET D'UN TOURNOI
+ */
+exports.getTournamentBracket = (req, res) => {
+  const tournament_id = req.params.id;
+
+  const sql = `
+    SELECT 
+      m.id,
+      m.round,
+      m.status,
+      m.winner,
+      u1.pseudo AS player_one_pseudo,
+      u2.pseudo AS player_two_pseudo
+    FROM matches m
+    LEFT JOIN users u1 ON m.player_one = u1.id
+    LEFT JOIN users u2 ON m.player_two = u2.id
+    WHERE m.tournament_id = ?
+    ORDER BY m.id ASC
+  `;
+
+  db.query(sql, [tournament_id], (err, result) => {
+    if (err) return res.status(500).json(err);
+    res.json(result);
+  });
+};
+
+// Voir un joueur
+exports.getPlayer = (req, res) => {
+  const id = req.params.id;
+
+  const sql = `
+    SELECT
+        u.id,
+        u.name,
+        u.pseudo,
+        u.email,
+        u.phone,
+        u.efootball_id,
+        u.role,
+
+        (
+            SELECT COUNT(*)
+            FROM tournament_players
+            WHERE player_id = u.id
+        ) AS tournaments,
+
+        (
+            SELECT COUNT(*)
+            FROM matches
+            WHERE player_one = u.id
+            OR player_two = u.id
+        ) AS matches,
+
+        (
+            SELECT COUNT(*)
+            FROM matches
+            WHERE winner = u.id
+        ) AS wins
+
+    FROM users u
+    WHERE u.id = ?
+  `;
+
+  db.query(sql, [id], (err, result) => {
+    if (err) {
+      console.log(err);
+      return res.status(500).json(err);
     }
-  };
 
-  return (
-    <div className="admin-page">
-      <Sidebar />
+    if (result.length === 0) {
+      return res.status(404).json({
+        message: "Joueur introuvable"
+      });
+    }
 
-      <div style={{ marginLeft: "280px", padding: "20px" }}>
-        <h1>🏆 Gestion des tournois</h1>
+    res.json(result[0]);
+  });
+};
 
-        {tournaments.map((t) => {
-          // Compter les joueurs inscrits si les participants sont chargés
-          const isSelected = selectedTournament === t.id;
-          const paidCount = isSelected && viewMode === "players"
-            ? players.filter((p) => p.payment_status === "paid").length
-            : null;
-          const isFull = paidCount !== null && paidCount >= 16;
+exports.banPlayer = (req, res) => {
+  const id = req.params.id;
 
-          return (
-            <div
-              key={t.id}
-              style={{
-                border: isFull ? "2px solid #ef4444" : "1px solid #ddd",
-                padding: "15px",
-                marginBottom: "15px",
-                borderRadius: "8px",
-                backgroundColor: isFull ? "#fef2f2" : "#ffffff"
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3>{t.name}</h3>
-                {isFull && (
-                  <span
-                    style={{
-                      backgroundColor: "#ef4444",
-                      color: "white",
-                      padding: "4px 8px",
-                      borderRadius: "4px",
-                      fontWeight: "bold",
-                      fontSize: "0.85rem"
-                    }}
-                  >
-                    COMPLET (16/16)
-                  </span>
-                )}
-              </div>
+  db.query(
+    `
+    UPDATE users
+    SET status = 'banned'
+    WHERE id = ?
+    `,
+    [id],
+    (err) => {
+      if (err) {
+        return res.status(500).json(err);
+      }
 
-              <p>Participation : {t.entry_fee} FCFA</p>
-
-              <p>Récompense : {t.reward} FCFA</p>
-
-              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "10px" }}>
-                <button onClick={() => handlePlayers(t.id)}>
-                  👥 Participants {isSelected && viewMode === "players" ? `(${players.length})` : ""}
-                </button>
-
-                <button
-                  onClick={() => handleShowBracket(t.id)}
-                  style={{ backgroundColor: "#2563eb", color: "white", border: "none", borderRadius: "4px", padding: "8px 12px", cursor: "pointer" }}
-                >
-                  👁 Voir le Bracket
-                </button>
-
-                {/* BOUTON DE GENERATION DU BRACKET */}
-                <button
-                  onClick={() => handleGenerateBracket(t.id)}
-                  disabled={bracketLoadingId === t.id}
-                  style={{
-                    backgroundColor: "#16a34a",
-                    color: "white",
-                    border: "none",
-                    padding: "8px 12px",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                    fontWeight: "bold"
-                  }}
-                >
-                  {bracketLoadingId === t.id ? "⏳ Tirage..." : "🏆 Générer Bracket"}
-                </button>
-
-                <button>✏ Modifier</button>
-
-                {/* BOUTON TEST POUR INJECTER LES 15 JOUEURS */}
-                <button
-                  onClick={() => handleAddTestPlayers(t.id)}
-                  disabled={loadingTournamentId === t.id}
-                  style={{
-                    backgroundColor: "#8b5cf6",
-                    color: "white",
-                    border: "none",
-                    padding: "8px 12px",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                    fontWeight: "bold"
-                  }}
-                >
-                  {loadingTournamentId === t.id
-                    ? "⏳ Inscription en cours..."
-                    : "🧪 Ajouter 15 Joueurs Test"}
-                </button>
-
-                <button
-                  onClick={() => handleDelete(t.id)}
-                  style={{ backgroundColor: "#dc2626", color: "white", border: "none", borderRadius: "4px" }}
-                >
-                  🗑 Supprimer
-                </button>
-              </div>
-
-              {/* TABLEAU DES PARTICIPANTS */}
-              {isSelected && viewMode === "players" && (
-                <div style={{ marginTop: "20px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <h3>
-                      Participants ({players.length}/16)
-                    </h3>
-                    <span
-                      style={{
-                        fontWeight: "bold",
-                        color: paidCount >= 16 ? "#dc2626" : "#16a34a"
-                      }}
-                    >
-                      {paidCount} Joueurs Payés
-                    </span>
-                  </div>
-
-                  <table className="admin-table" style={{ width: "100%", marginTop: "10px" }}>
-                    <thead>
-                      <tr>
-                        <th>Nom</th>
-                        <th>Pseudo</th>
-                        <th>Téléphone</th>
-                        <th>Paiement</th>
-                      </tr>
-                    </thead>
-
-                    <tbody>
-                      {players.map((p) => (
-                        <tr key={p.id}>
-                          <td>{p.name}</td>
-                          <td>{p.pseudo}</td>
-                          <td>{p.phone}</td>
-                          <td>
-                            <span
-                              style={{
-                                padding: "3px 8px",
-                                borderRadius: "4px",
-                                backgroundColor:
-                                  p.payment_status === "paid"
-                                    ? "#dcfce7"
-                                    : "#fef3c7",
-                                color:
-                                  p.payment_status === "paid"
-                                    ? "#166534"
-                                    : "#92400e",
-                                fontWeight: "bold"
-                              }}
-                            >
-                              {p.payment_status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* ARBRE DU TOURNOI (MATCHS) */}
-              {isSelected && viewMode === "bracket" && (
-                <div style={{ marginTop: "20px" }}>
-                  <h3>🏆 Arbre du Tournoi - 1/8ème de Finale ({matches.length} Matchs)</h3>
-                  {matches.length === 0 ? (
-                    <p style={{ color: "#666" }}>Aucun match n'a encore été généré. Cliquez sur "🏆 Générer Bracket".</p>
-                  ) : (
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "15px", marginTop: "15px" }}>
-                      {matches.map((m, index) => (
-                        <div
-                          key={m.id}
-                          style={{
-                            border: "1px solid #3b82f6",
-                            borderRadius: "8px",
-                            padding: "12px",
-                            backgroundColor: "#eff6ff"
-                          }}
-                        >
-                          <h4 style={{ margin: "0 0 10px 0", color: "#1d4ed8" }}>Match {index + 1}</h4>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "bold" }}>
-                            <span>{m.player_one_pseudo || "En attente"}</span>
-                            <span>VS</span>
-                            <span>{m.player_two_pseudo || "En attente"}</span>
-                          </div>
-                          <div style={{ marginTop: "8px", fontSize: "0.85rem", color: "#6b7280" }}>
-                            Statut : {m.status === "pending" ? "⏳ En attente" : m.status}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
+      res.json({
+        message: "Joueur banni avec succès"
+      });
+    }
   );
-}
+};
 
-export default AdminTournaments;
+exports.deletePlayer = (req, res) => {
+  const id = req.params.id;
+
+  db.query("SELECT role FROM users WHERE id = ?", [id], (err, result) => {
+    if (err) {
+      return res.status(500).json(err);
+    }
+
+    if (result.length === 0) {
+      return res.status(404).json({
+        message: "Joueur introuvable"
+      });
+    }
+
+    if (result[0].role === "admin") {
+      return res.status(400).json({
+        message: "Impossible de supprimer un administrateur."
+      });
+    }
+
+    db.query("DELETE FROM tournament_players WHERE player_id = ?", [id], (err) => {
+      if (err) {
+        return res.status(500).json(err);
+      }
+
+      db.query("DELETE FROM users WHERE id = ?", [id], (err) => {
+        if (err) {
+          return res.status(500).json(err);
+        }
+
+        res.json({
+          message: "Joueur supprimé avec succès"
+        });
+      });
+    });
+  });
+};
+
+exports.deleteTournament = (req, res) => {
+  const id = req.params.id;
+
+  db.query("DELETE FROM tournament_players WHERE tournament_id = ?", [id], (err) => {
+    if (err) return res.status(500).json(err);
+
+    db.query("DELETE FROM matches WHERE tournament_id = ?", [id], (err) => {
+      if (err) return res.status(500).json(err);
+
+      db.query("DELETE FROM tournaments WHERE id = ?", [id], (err) => {
+        if (err) return res.status(500).json(err);
+
+        res.json({
+          message: "Tournoi supprimé avec succès"
+        });
+      });
+    });
+  });
+};
+
+exports.getTournamentPlayers = (req, res) => {
+  const tournament_id = req.params.id;
+
+  const sql = `
+    SELECT
+        users.id,
+        users.name,
+        users.pseudo,
+        users.phone,
+        tournament_players.payment_status
+
+    FROM tournament_players
+
+    JOIN users
+    ON tournament_players.player_id = users.id
+
+    WHERE tournament_players.tournament_id = ?
+  `;
+
+  db.query(sql, [tournament_id], (err, result) => {
+    if (err) {
+      return res.status(500).json(err);
+    }
+
+    res.json(result);
+  });
+};
+
+// Voir tous les paiements
+exports.getPayments = (req, res) => {
+  const sql = `
+    SELECT
+        payments.id,
+        users.pseudo,
+        tournaments.name AS tournament,
+        payments.amount,
+        payments.method,
+        payments.transaction_id,
+        payments.status,
+        payments.created_at
+
+    FROM payments
+
+    JOIN users
+    ON payments.player_id = users.id
+
+    JOIN tournaments
+    ON payments.tournament_id = tournaments.id
+
+    ORDER BY payments.created_at DESC
+  `;
+
+  db.query(sql, (err, result) => {
+    if (err) {
+      console.log(err);
+      return res.status(500).json(err);
+    }
+
+    res.json(result);
+  });
+};
+
+// Voir toutes les récompenses
+exports.getRewards = (req, res) => {
+  const sql = `
+    SELECT
+        rewards.id,
+        users.pseudo,
+        tournaments.name AS tournament,
+        rewards.amount,
+        rewards.phone,
+        rewards.status
+
+    FROM rewards
+
+    JOIN users
+    ON rewards.player_id = users.id
+
+    JOIN tournaments
+    ON rewards.tournament_id = tournaments.id
+
+    ORDER BY rewards.id DESC
+  `;
+
+  db.query(sql, (err, result) => {
+    if (err) {
+      return res.status(500).json(err);
+    }
+
+    res.json(result);
+  });
+};
