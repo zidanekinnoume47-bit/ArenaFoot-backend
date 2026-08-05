@@ -1,28 +1,21 @@
 const express = require("express");
 const router = express.Router();
-console.log("BRACKET ROUTES CHARGEES");
 
-const bracketController = require("../controllers/bracketController");
-
+const matchController = require("../controllers/matchController");
 
 router.post(
-  "/generate/:id",
-  (req, res, next) => {
-    console.log("Route generate appelée");
-    next();
-  },
-  bracketController.generateMatches
+    "/generate/:id",
+    matchController.generateMatches
 );
 
 router.get(
-  "/:id",
-  bracketController.getBracket
+    "/:id",
+    matchController.getBracket
 );
 
 router.put(
-  "/finish",
-  bracketController.finishMatch
+    "/finish",
+    matchController.finishMatch
 );
-
 
 module.exports = router;
