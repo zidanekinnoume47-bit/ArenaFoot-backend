@@ -1,5 +1,4 @@
 const db = require("../config/database");
-const bracketController = require("./bracketController");
 
 // Voir tous les joueurs
 exports.players = (req, res) => {
@@ -161,7 +160,7 @@ exports.createTestPlayers = (req, res) => {
  * GENERATION DU BRACKET : Tirage au sort et création des 8 matchs de 1/8ème de finale (16 joueurs)
  */
 exports.generateBracket = (req, res) => {
-    return bracketController.generateMatches(req, res);
+    return matchController.generateMatches(req, res);
 };
 
 /**
