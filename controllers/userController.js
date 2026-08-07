@@ -26,12 +26,11 @@ exports.register = (req, res) => {
 
             if (err) {
 
-                console.log(err);
+                console.log("ERREUR CREATION :", err);
 
                 return res.status(500).json({
                     message: "Erreur création compte"
                 });
-
             }
 
             const code = Math.floor(
@@ -42,64 +41,96 @@ exports.register = (req, res) => {
                 Date.now() + 10 * 60 * 1000
             );
 
+            // Enregistrer le code
             db.query(
                 `
                 INSERT INTO email_verifications
                 (user_id, code, type, expires_at)
-
                 VALUES (?, ?, 'register', ?)
                 `,
                 [
                     result.insertId,
                     code,
                     expire
-                ]
+                ],
+                async (err) => {
+
+                    if (err) {
+
+                        console.log(
+                            "ERREUR ENREGISTREMENT CODE :",
+                            err
+                        );
+
+                        return res.status(500).json({
+                            message: "Erreur enregistrement du code"
+                        });
+                    }
+
+                    try {
+
+                        console.log(
+                            "ENVOI CODE A :",
+                            data.email
+                        );
+
+                        await apiInstance.transactionalEmails.sendTransacEmail({
+
+                            sender: {
+                                name: "ArenaFoot",
+                                email: "arenafoot.app@gmail.com"
+                            },
+
+                            to: [
+                                {
+                                    email: data.email
+                                }
+                            ],
+
+                            subject:
+                                "Code de vérification ArenaFoot",
+
+                            htmlContent: `
+                                <h2>Bienvenue sur ArenaFoot ⚽</h2>
+
+                                <p>
+                                    Votre code de vérification est :
+                                </p>
+
+                                <h1 style="color:#2563eb;">
+                                    ${code}
+                                </h1>
+
+                                <p>
+                                    Ce code expire dans 10 minutes.
+                                </p>
+                            `
+                        });
+
+                        console.log(
+                            "EMAIL ENVOYE AVEC SUCCES"
+                        );
+
+                        return res.status(200).json({
+                            message: "Code envoyé",
+                            email: data.email
+                        });
+
+                    } catch (error) {
+
+                        console.log(
+                            "ERREUR ENVOI BREVO :",
+                            error
+                        );
+
+                        return res.status(500).json({
+                            message:
+                                "Compte créé mais code non envoyé"
+                        });
+                    }
+
+                }
             );
-
-            try {
-
-              await apiInstance.transactionalEmails.sendTransacEmail({
-
-    sender: {
-        name: "ArenaFoot",
-        email: "arenafoot.app@gmail.com"
-    },
-
-    to: [
-        {
-            email: data.email
-        }
-    ],
-
-    subject: "Activation ArenaFoot",
-
-    htmlContent: `
-        <h2>Bienvenue sur ArenaFoot ⚽</h2>
-
-        <p>Votre code de vérification est :</p>
-
-        <h1 style="color:#2563eb">
-            ${code}
-        </h1>
-
-        <p>Ce code expire dans 10 minutes.</p>
-    `
-
-});res.json({
-    message: "Code envoyé",
-    email: data.email
-});
-
-            } catch (error) {
-
-                console.log(error);
-
-                res.status(500).json({
-                    message:
-                        "Compte créé mais email non envoyé."
-                });
-
-            }
 
         });
 
