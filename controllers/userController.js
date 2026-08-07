@@ -2,46 +2,111 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const db = require("../config/database");
 const User = require("../models/User");
+const SibApiV3Sdk = require("@getbrevo/brevo");
+const apiInstance = require("../config/brevo");
+
 
 
 // INSCRIPTION
 
-exports.register = (req,res)=>{
+exports.register = (req, res) => {
 
-const data = req.body;
+    const data = req.body;
 
+    bcrypt.hash(data.password, 10, (err, hash) => {
 
-bcrypt.hash(data.password,10,(err,hash)=>{
+        if (err) {
+            return res.status(500).json({
+                message: "Erreur serveur"
+            });
+        }
 
+        data.password = hash;
 
-data.password = hash;
+        User.create(data, async (err, result) => {
 
+            if (err) {
 
-User.create(data,(err,result)=>{
+                console.log(err);
 
+                return res.status(500).json({
+                    message: "Erreur création compte"
+                });
 
-if (err) {
+            }
 
-    console.log("ERREUR INSCRIPTION :", err);
+            const code = Math.floor(
+                100000 + Math.random() * 900000
+            ).toString();
 
-    return res.status(500).json({
-        message: "Erreur création compte",
-        error: err
+            const expire = new Date(
+                Date.now() + 10 * 60 * 1000
+            );
+
+            db.query(
+                `
+                INSERT INTO email_verifications
+                (user_id, code, type, expires_at)
+
+                VALUES (?, ?, 'register', ?)
+                `,
+                [
+                    result.insertId,
+                    code,
+                    expire
+                ]
+            );
+
+            try {
+
+                const emailData = new SibApiV3Sdk.SendSmtpEmail();
+
+                emailData.sender = {
+                    name: "ArenaFoot",
+                    email: "arenafoot.app@gmail.com"
+                };
+
+                emailData.to = [
+                    {
+                        email: data.email
+                    }
+                ];
+
+                emailData.subject = "Activation ArenaFoot";
+
+                emailData.htmlContent = `
+                    <h2>Bienvenue sur ArenaFoot ⚽</h2>
+
+                    <p>Votre code de vérification est :</p>
+
+                    <h1 style="color:#2563eb">
+                        ${code}
+                    </h1>
+
+                    <p>Ce code expire dans 10 minutes.</p>
+                `;
+
+                await apiInstance.sendTransacEmail(emailData);
+
+                res.json({
+                    message:
+                        "Compte créé. Vérifiez votre email."
+                });
+
+            } catch (error) {
+
+                console.log(error);
+
+                res.status(500).json({
+                    message:
+                        "Compte créé mais email non envoyé."
+                });
+
+            }
+
+        });
+
     });
-
-}
-
-
-res.json({
-message:"Compte créé avec succès"
-});
-
-
-});
-
-
-});
-
 
 };
 
@@ -307,6 +372,78 @@ exports.getProfile = (req, res) => {
 
         });
 
+
+    });
+
+};
+
+exports.verifyEmail = (req, res) => {
+
+    const { email, code } = req.body;
+
+    if (!email || !code) {
+        return res.status(400).json({
+            message: "Email et code requis"
+        });
+    }
+
+    const sql = `
+        SELECT
+            ev.id,
+            ev.user_id,
+            ev.code,
+            ev.expires_at
+        FROM email_verifications ev
+        JOIN users u
+        ON ev.user_id = u.id
+        WHERE u.email = ?
+        AND ev.type = 'register'
+        ORDER BY ev.id DESC
+        LIMIT 1
+    `;
+
+    db.query(sql, [email], (err, result) => {
+
+        if (err) return res.status(500).json(err);
+
+        if (result.length === 0) {
+            return res.status(404).json({
+                message: "Aucun code trouvé"
+            });
+        }
+
+        const verification = result[0];
+
+        if (verification.code !== code) {
+            return res.status(400).json({
+                message: "Code incorrect"
+            });
+        }
+
+        if (new Date() > new Date(verification.expires_at)) {
+            return res.status(400).json({
+                message: "Code expiré"
+            });
+        }
+
+        db.query(
+            "UPDATE users SET email_verified = 1 WHERE id = ?",
+            [verification.user_id],
+            (err) => {
+
+                if (err) return res.status(500).json(err);
+
+                db.query(
+                    "DELETE FROM email_verifications WHERE id = ?",
+                    [verification.id]
+                );
+
+                res.json({
+                    message: "Compte vérifié avec succès 🎉"
+                });
+
+            }
+        );
 
     });
 

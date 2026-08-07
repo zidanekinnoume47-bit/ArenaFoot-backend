@@ -13,4 +13,7 @@ router.get("/:id", userController.getUser);
 
 router.get("/profile/:id", userController.getProfile);
 
+router.post("/verify-email",userController.verifyEmail);
+
+
 module.exports = router;
