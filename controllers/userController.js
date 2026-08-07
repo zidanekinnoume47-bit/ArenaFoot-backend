@@ -2,7 +2,6 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const db = require("../config/database");
 const User = require("../models/User");
-const SibApiV3Sdk = require("@getbrevo/brevo");
 const apiInstance = require("../config/brevo");
 
 
@@ -59,7 +58,7 @@ exports.register = (req, res) => {
 
             try {
 
-               await apiInstance.transactionalEmails.sendTransacEmail({
+              await apiInstance.transactionalEmails.sendTransacEmail({
 
     sender: {
         name: "ArenaFoot",
@@ -77,7 +76,7 @@ exports.register = (req, res) => {
     htmlContent: `
         <h2>Bienvenue sur ArenaFoot ⚽</h2>
 
-        <p>Votre code est :</p>
+        <p>Votre code de vérification est :</p>
 
         <h1 style="color:#2563eb">
             ${code}
@@ -86,12 +85,10 @@ exports.register = (req, res) => {
         <p>Ce code expire dans 10 minutes.</p>
     `
 
+});res.json({
+    message: "Code envoyé",
+    email: data.email
 });
-
-                res.json({
-                    message:
-                        "Compte créé. Vérifiez votre email."
-                });
 
             } catch (error) {
 
