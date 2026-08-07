@@ -161,17 +161,37 @@ exports.generateMatches = (req, res) => {
                     }));
                 }
 
+                console.log("firstId :", firstId);
+                console.log("Nombre de requêtes UPDATE :", updateLinksQueries.length);
+
                 Promise.all(updateLinksQueries)
-                    .then(() => {
-                        res.status(201).json({
-                            message: "Bracket complet et liens créés avec succès par position 🏆",
-                            matches_created: matches.length
-                        });
-                    })
-                    .catch((error) => {
-                        console.log("Erreur liaison links :", error);
-                        res.status(500).json({ error: "Erreur lors de la liaison des tours du bracket" });
-                    });
+    .then(() => {
+
+        console.log("firstId :", firstId);
+        console.log("Nombre de requêtes UPDATE :", updateLinksQueries.length);
+
+        db.query(
+            "SELECT id, next_match_id, next_slot FROM matches WHERE tournament_id=? ORDER BY id",
+            [tournament_id],
+            (err, rows) => {
+
+                console.log("MATCHS APRÈS UPDATE :", rows);
+
+                res.status(201).json({
+                    message: "Bracket complet et liens créés avec succès par position 🏆",
+                    matches_created: matches.length
+                });
+
+            }
+        );
+
+    })
+    .catch((error) => {
+        console.log("Erreur liaison links :", error);
+        res.status(500).json({
+            error: "Erreur lors de la liaison des tours du bracket"
+        });
+    });
             });
         });
     });
