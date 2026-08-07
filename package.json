@@ -8,6 +8,7 @@
     "start": "node server.js"
   },
   "dependencies": {
+    "@getbrevo/brevo": "^6.0.2",
     "bcrypt": "^6.0.0",
     "compression": "^1.8.0",
     "cors": "^2.8.6",
