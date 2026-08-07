@@ -38,6 +38,8 @@ const shuffleArray = (array) => {
 // Générer les matchs d'un tournoi
 // ==================================
 exports.generateMatches = (req, res) => {
+
+    console.log("========== GENERATE MATCHES ==========");
     const tournament_id = req.params.id;
 
     const checkSql = `SELECT id FROM matches WHERE tournament_id = ? LIMIT 1`;
