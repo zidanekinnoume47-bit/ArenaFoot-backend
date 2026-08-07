@@ -3,14 +3,13 @@
   "version": "1.0.0",
   "description": "Backend ArenaFoot API",
   "main": "server.js",
-
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js"
   },
-
   "dependencies": {
     "bcrypt": "^6.0.0",
+    "compression": "^1.8.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
@@ -21,24 +20,20 @@
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.11.0",
     "mysql2": "^3.23.2",
-    "socket.io": "^4.8.3",
-    "compression": "^1.8.0"
+    "nodemailer": "^9.0.5",
+    "socket.io": "^4.8.3"
   },
-
   "allowScripts": {
     "bcrypt@6.0.0": true
   },
-
   "devDependencies": {
     "nodemon": "^3.1.14"
   },
-
   "keywords": [
     "efootball",
     "tournament",
     "gaming",
     "arenafont"
   ],
-
   "license": "MIT"
 }

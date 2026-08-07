@@ -34,6 +34,7 @@ const mobilePaymentRoutes = require("./routes/mobileRoutes");
 const bracketRoutes = require("./routes/bracketRoutes");
 const rankingRoutes = require("./routes/rankingRoutes");
 const settingRoutes = require("./routes/settingRoutes");
+const emailRoutes = require("./routes/emailRoutes");
 
 console.log("userRoutes :", typeof userRoutes);
 console.log("tournamentRoutes :", typeof tournamentRoutes);
@@ -108,6 +109,9 @@ app.use("/api/ranking", rankingRoutes);
 
 console.log("CHARGEMENT SETTINGS");
 app.use("/api/settings", settingRoutes);
+
+app.use("/api/email", emailRoutes);
+console.log("CHARGEMENT EMAIL");
 
 const PORT = process.env.PORT || 5000;
 
