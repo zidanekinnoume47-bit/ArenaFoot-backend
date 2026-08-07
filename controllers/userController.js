@@ -59,34 +59,34 @@ exports.register = (req, res) => {
 
             try {
 
-                const emailData = new SibApiV3Sdk.SendSmtpEmail();
+               await apiInstance.transactionalEmails.sendTransacEmail({
 
-                emailData.sender = {
-                    name: "ArenaFoot",
-                    email: "arenafoot.app@gmail.com"
-                };
+    sender: {
+        name: "ArenaFoot",
+        email: "arenafoot.app@gmail.com"
+    },
 
-                emailData.to = [
-                    {
-                        email: data.email
-                    }
-                ];
+    to: [
+        {
+            email: data.email
+        }
+    ],
 
-                emailData.subject = "Activation ArenaFoot";
+    subject: "Activation ArenaFoot",
 
-                emailData.htmlContent = `
-                    <h2>Bienvenue sur ArenaFoot ⚽</h2>
+    htmlContent: `
+        <h2>Bienvenue sur ArenaFoot ⚽</h2>
 
-                    <p>Votre code de vérification est :</p>
+        <p>Votre code est :</p>
 
-                    <h1 style="color:#2563eb">
-                        ${code}
-                    </h1>
+        <h1 style="color:#2563eb">
+            ${code}
+        </h1>
 
-                    <p>Ce code expire dans 10 minutes.</p>
-                `;
+        <p>Ce code expire dans 10 minutes.</p>
+    `
 
-                await apiInstance.sendTransacEmail(emailData);
+});
 
                 res.json({
                     message:
@@ -204,7 +204,13 @@ message:"Utilisateur introuvable"
 
 const user=result[0];
 
+if (user.email_verified !== 1) {
 
+    return res.status(403).json({
+        message: "Veuillez vérifier votre adresse email avant de vous connecter."
+    });
+
+}
 
 bcrypt.compare(
 password,
