@@ -1,5 +1,5 @@
 const db = require("../config/database");
-
+const matchController = require("./matchController");
 // Voir tous les joueurs
 exports.players = (req, res) => {
   db.query(
