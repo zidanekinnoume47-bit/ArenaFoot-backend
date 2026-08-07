@@ -1,64 +1,48 @@
-const SibApiV3Sdk = require("@getbrevo/brevo");
-const apiInstance = require("../config/brevo");
+const brevo = require("@getbrevo/brevo");
+const client = require("../config/brevo");
 
 exports.sendVerificationCode = async (req, res) => {
+  const { email } = req.body;
 
-    const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({
+      message: "Email requis"
+    });
+  }
 
-    if (!email) {
-        return res.status(400).json({
-            message: "Email requis"
-        });
-    }
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
 
-    const code = Math.floor(
-        100000 + Math.random() * 900000
-    ).toString();
+  try {
 
-    const emailData = new SibApiV3Sdk.SendSmtpEmail();
-
-    emailData.sender = {
+    await client.transactionalEmails.sendTransacEmail({
+      sender: {
         name: "ArenaFoot",
         email: "arenafoot.app@gmail.com"
-    };
-
-    emailData.to = [
+      },
+      to: [
         {
-            email: email
+          email: email
         }
-    ];
-
-    emailData.subject = "Code de vérification ArenaFoot";
-
-    emailData.htmlContent = `
+      ],
+      subject: "Code de vérification ArenaFoot",
+      htmlContent: `
         <h2>Bienvenue sur ArenaFoot ⚽</h2>
-
-        <p>Votre code est :</p>
-
-        <h1 style="color:#2563eb">
-            ${code}
-        </h1>
-
+        <p>Votre code de vérification est :</p>
+        <h1 style="color:#2563eb">${code}</h1>
         <p>Ce code expire dans 10 minutes.</p>
-    `;
+      `
+    });
 
-    try {
+    res.json({
+      message: "Code envoyé",
+      code
+    });
 
-        await apiInstance.sendTransacEmail(emailData);
+  } catch (error) {
+    console.log(error);
 
-        res.json({
-            message: "Code envoyé",
-            code
-        });
-
-    } catch (error) {
-
-        console.log(error);
-
-        res.status(500).json({
-            message: "Erreur Brevo"
-        });
-
-    }
-
+    res.status(500).json({
+      message: "Erreur Brevo"
+    });
+  }
 };

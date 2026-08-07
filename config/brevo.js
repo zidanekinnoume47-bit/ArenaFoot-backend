@@ -1,10 +1,7 @@
-const SibApiV3Sdk = require("@getbrevo/brevo");
+const brevo = require("@getbrevo/brevo");
 
-const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
+const client = new brevo.BrevoClient({
+  apiKey: process.env.BREVO_API_KEY,
+});
 
-apiInstance.setApiKey(
-    SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey,
-    process.env.BREVO_API_KEY
-);
-
-module.exports = apiInstance;
+module.exports = client;
