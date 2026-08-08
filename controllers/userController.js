@@ -482,3 +482,335 @@ exports.verifyEmail = (req, res) => {
     });
 
 };
+
+
+
+
+// MOT DE PASSE OUBLIÉ
+// ==========================================
+
+exports.forgotPassword = (req, res) => {
+
+    const { email } = req.body;
+
+    if (!email) {
+        return res.status(400).json({
+            message: "Email requis"
+        });
+    }
+
+    User.findByEmail(email, async (err, result) => {
+
+        if (err) {
+            console.log(err);
+
+            return res.status(500).json({
+                message: "Erreur serveur"
+            });
+        }
+
+        if (!result || result.length === 0) {
+            return res.status(404).json({
+                message: "Aucun compte associé à cet email"
+            });
+        }
+
+        const user = result[0];
+
+        const code = Math.floor(
+            100000 + Math.random() * 900000
+        ).toString();
+
+        const expire = new Date(
+            Date.now() + 10 * 60 * 1000
+        );
+
+        // Supprimer les anciens codes de réinitialisation
+        db.query(
+            `
+            DELETE FROM email_verifications
+            WHERE user_id = ?
+            AND type = 'reset'
+            `,
+            [user.id],
+            async (err) => {
+
+                if (err) {
+                    console.log(err);
+
+                    return res.status(500).json({
+                        message: "Erreur serveur"
+                    });
+                }
+
+                // Enregistrer le nouveau code
+                db.query(
+                    `
+                    INSERT INTO email_verifications
+                    (user_id, code, type, expires_at)
+                    VALUES (?, ?, 'reset', ?)
+                    `,
+                    [
+                        user.id,
+                        code,
+                        expire
+                    ],
+                    async (err) => {
+
+                        if (err) {
+                            console.log(err);
+
+                            return res.status(500).json({
+                                message: "Erreur enregistrement du code"
+                            });
+                        }
+
+                        try {
+
+                            await apiInstance.transactionalEmails.sendTransacEmail({
+
+                                sender: {
+                                    name: "ArenaFoot",
+                                    email: "arenafoot.app@gmail.com"
+                                },
+
+                                to: [
+                                    {
+                                        email: email
+                                    }
+                                ],
+
+                                subject:
+                                    "Réinitialisation de votre mot de passe ArenaFoot",
+
+                                htmlContent: `
+                                    <h2>Réinitialisation ArenaFoot ⚽</h2>
+
+                                    <p>
+                                        Vous avez demandé la réinitialisation
+                                        de votre mot de passe.
+                                    </p>
+
+                                    <p>
+                                        Votre code de vérification est :
+                                    </p>
+
+                                    <h1 style="color:#2563eb;">
+                                        ${code}
+                                    </h1>
+
+                                    <p>
+                                        Ce code est valable pendant 10 minutes.
+                                    </p>
+
+                                    <p>
+                                        Si vous n'êtes pas à l'origine
+                                        de cette demande, ignorez cet email.
+                                    </p>
+                                `
+                            });
+
+                            return res.json({
+                                message: "Code envoyé",
+                                email: email
+                            });
+
+                        } catch (error) {
+
+                            console.log(
+                                "ERREUR BREVO RESET :",
+                                error
+                            );
+
+                            return res.status(500).json({
+                                message: "Impossible d'envoyer le code"
+                            });
+
+                        }
+
+                    }
+                );
+
+            }
+        );
+
+    });
+
+};
+
+
+
+
+
+
+exports.verifyResetCode = (req, res) => {
+
+    const { email, code } = req.body;
+
+    if (!email || !code) {
+        return res.status(400).json({
+            message: "Email et code requis"
+        });
+    }
+
+    db.query(
+        `
+        SELECT
+            ev.id,
+            ev.user_id,
+            ev.code,
+            ev.expires_at
+        FROM email_verifications ev
+        JOIN users u
+        ON ev.user_id = u.id
+        WHERE u.email = ?
+        AND ev.type = 'reset'
+        ORDER BY ev.id DESC
+        LIMIT 1
+        `,
+        [email],
+        (err, result) => {
+
+            if (err) {
+                return res.status(500).json({
+                    message: "Erreur serveur"
+                });
+            }
+
+            if (!result || result.length === 0) {
+                return res.status(404).json({
+                    message: "Code introuvable"
+                });
+            }
+
+            const verification = result[0];
+
+            if (verification.code !== code) {
+                return res.status(400).json({
+                    message: "Code incorrect"
+                });
+            }
+
+            if (
+                new Date() >
+                new Date(verification.expires_at)
+            ) {
+                return res.status(400).json({
+                    message: "Code expiré"
+                });
+            }
+
+            return res.json({
+                message: "Code valide",
+                user_id: verification.user_id
+            });
+
+        }
+    );
+
+};
+
+
+
+
+
+exports.resetPassword = (req, res) => {
+
+    const {
+        user_id,
+        code,
+        password
+    } = req.body;
+
+    if (!user_id || !code || !password) {
+        return res.status(400).json({
+            message: "Informations manquantes"
+        });
+    }
+
+    db.query(
+        `
+        SELECT *
+        FROM email_verifications
+        WHERE user_id = ?
+        AND code = ?
+        AND type = 'reset'
+        ORDER BY id DESC
+        LIMIT 1
+        `,
+        [user_id, code],
+        (err, result) => {
+
+            if (err) {
+                return res.status(500).json({
+                    message: "Erreur serveur"
+                });
+            }
+
+            if (!result || result.length === 0) {
+                return res.status(400).json({
+                    message: "Code incorrect"
+                });
+            }
+
+            const verification = result[0];
+
+            if (
+                new Date() >
+                new Date(verification.expires_at)
+            ) {
+                return res.status(400).json({
+                    message: "Code expiré"
+                });
+            }
+
+            bcrypt.hash(
+                password,
+                10,
+                (err, hash) => {
+
+                    if (err) {
+                        return res.status(500).json({
+                            message: "Erreur serveur"
+                        });
+                    }
+
+                    db.query(
+                        `
+                        UPDATE users
+                        SET password = ?
+                        WHERE id = ?
+                        `,
+                        [hash, user_id],
+                        (err) => {
+
+                            if (err) {
+                                return res.status(500).json({
+                                    message:
+                                        "Erreur modification mot de passe"
+                                });
+                            }
+
+                            db.query(
+                                `
+                                DELETE FROM email_verifications
+                                WHERE id = ?
+                                `,
+                                [verification.id]
+                            );
+
+                            return res.json({
+                                message:
+                                    "Mot de passe modifié avec succès 🎉"
+                            });
+
+                        }
+                    );
+
+                }
+            );
+
+        }
+    );
+
+};
