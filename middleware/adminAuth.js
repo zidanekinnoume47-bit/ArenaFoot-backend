@@ -1,72 +1,107 @@
 const jwt = require("jsonwebtoken");
+const db = require("../config/database");
 
+module.exports = (req, res, next) => {
 
-module.exports = (req,res,next)=>{
+  const authHeader = req.headers.authorization;
 
-const authHeader = req.headers.authorization;
-
-if (!authHeader) {
+  if (!authHeader) {
     return res.status(401).json({
-        message: "Accès refusé"
+      message: "Accès refusé"
     });
-}
+  }
 
-const token = authHeader.startsWith("Bearer ")
+  const token = authHeader.startsWith("Bearer ")
     ? authHeader.split(" ")[1]
     : authHeader;
 
+  if (!token) {
+    return res.status(401).json({
+      message: "Accès refusé"
+    });
+  }
 
-if(!token){
+  try {
 
-return res.status(401).json({
+    const user = jwt.verify(
+      token,
+      process.env.JWT_SECRET
+    );
 
-message:"Accès refusé"
+    // Vérification du rôle contenu dans le JWT
+    if (user.role !== "admin") {
+      return res.status(403).json({
+        message: "Administrateur uniquement"
+      });
+    }
 
-});
+    // Vérification supplémentaire dans la base de données
+    db.query(
+      `
+      SELECT id, email, role
+      FROM users
+      WHERE id = ?
+      LIMIT 1
+      `,
+      [user.id],
+      (err, result) => {
 
-}
+        if (err) {
 
+          console.error(
+            "ERREUR VÉRIFICATION ADMIN :",
+            err
+          );
 
-try{
+          return res.status(500).json({
+            message: "Erreur serveur"
+          });
 
+        }
 
-const user =
-jwt.verify(
-token,
-process.env.JWT_SECRET
-);
+        // Le compte n'existe plus
+        if (result.length === 0) {
 
+          return res.status(401).json({
+            message: "Compte administrateur introuvable"
+          });
 
+        }
 
-if(user.role !== "admin"){
+        const admin = result[0];
 
-return res.status(403).json({
+        // Le compte existe mais n'est plus admin
+        if (admin.role !== "admin") {
 
-message:"Administrateur uniquement"
+          return res.status(403).json({
+            message: "Accès administrateur révoqué"
+          });
 
-});
+        }
 
-}
+        // Tout est correct
+        req.user = {
+          id: admin.id,
+          email: admin.email,
+          role: admin.role
+        };
 
+        next();
 
-req.user=user;
+      }
+    );
 
+  } catch (error) {
 
-next();
+    console.error(
+      "ERREUR JWT ADMIN :",
+      error.message
+    );
 
+    return res.status(401).json({
+      message: "Token invalide ou expiré"
+    });
 
-
-}catch(error){
-
-
-res.status(401).json({
-
-message:"Token invalide"
-
-});
-
-
-}
-
+  }
 
 };
