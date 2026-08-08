@@ -5,8 +5,36 @@ const adminController = require("../controllers/adminController");
 const adminAuth = require("../middleware/adminAuth");
 const rewardController = require("../controllers/rewardController");
 
-console.log("ADMIN CONTROLLER :", adminController);
-console.log("ADMIN AUTH :", adminAuth);
+
+// ==========================================
+// 🔐 AUTHENTIFICATION ADMIN
+// Ces routes NE doivent PAS avoir adminAuth
+// ==========================================
+
+router.post(
+  "/login",
+  adminController.login
+);
+
+router.post(
+  "/forgot-password",
+  adminController.forgotPassword
+);
+
+router.post(
+  "/verify-reset-code",
+  adminController.verifyResetCode
+);
+
+router.post(
+  "/reset-password",
+  adminController.resetPassword
+);
+
+
+// ==========================================
+// 🔒 ROUTES ADMIN PROTÉGÉES
+// ==========================================
 
 router.get(
   "/players",
@@ -38,14 +66,12 @@ router.get(
   adminController.getPayments
 );
 
-// Création temporaire de joueurs de test pour un tournoi
 router.post(
   "/test-players/:id",
   adminAuth,
   adminController.createTestPlayers
 );
 
-// 🏆 Génération automatique du Bracket (1/8ème de finale)
 router.post(
   "/tournament/:id/generate-bracket",
   adminAuth,
@@ -87,5 +113,6 @@ router.put(
   adminAuth,
   rewardController.sendReward
 );
+
 
 module.exports = router;

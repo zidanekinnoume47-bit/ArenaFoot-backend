@@ -1,5 +1,12 @@
 const db = require("../config/database");
 const matchController = require("./matchController");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const client = require("../config/brevo");
+
+
+
+
 // Voir tous les joueurs
 exports.players = (req, res) => {
   db.query(
@@ -414,4 +421,420 @@ exports.getRewards = (req, res) => {
 
     res.json(result);
   });
+};
+
+
+
+// ================================
+// CONNEXION ADMIN
+// ================================
+
+exports.login = (req, res) => {
+
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({
+      message: "Email et mot de passe requis"
+    });
+  }
+
+  db.query(
+    `
+    SELECT *
+    FROM users
+    WHERE email = ?
+    AND role = 'admin'
+    LIMIT 1
+    `,
+    [email],
+    (err, result) => {
+
+      if (err) {
+        console.error("ERREUR LOGIN ADMIN :", err);
+
+        return res.status(500).json({
+          message: "Erreur serveur"
+        });
+      }
+
+      if (result.length === 0) {
+        return res.status(401).json({
+          message: "Accès administrateur refusé"
+        });
+      }
+
+      const admin = result[0];
+
+      bcrypt.compare(
+        password,
+        admin.password,
+        (err, match) => {
+
+          if (err) {
+            return res.status(500).json({
+              message: "Erreur serveur"
+            });
+          }
+
+          if (!match) {
+            return res.status(401).json({
+              message: "Mot de passe incorrect"
+            });
+          }
+
+          const token = jwt.sign(
+            {
+              id: admin.id,
+              email: admin.email,
+              role: admin.role
+            },
+            process.env.JWT_SECRET,
+            {
+              expiresIn: "24h"
+            }
+          );
+
+          res.json({
+            message: "Connexion administrateur réussie",
+            token,
+            user: {
+              id: admin.id,
+              name: admin.name,
+              email: admin.email,
+              role: admin.role
+            }
+          });
+
+        }
+      );
+
+    }
+  );
+
+};
+
+
+
+
+
+// ================================
+// MOT DE PASSE OUBLIÉ ADMIN
+// ================================
+
+exports.forgotPassword = async (req, res) => {
+
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({
+      message: "Email requis"
+    });
+  }
+
+  db.query(
+    `
+    SELECT id, name, email
+    FROM users
+    WHERE email = ?
+    AND role = 'admin'
+    LIMIT 1
+    `,
+    [email],
+    async (err, result) => {
+
+      if (err) {
+        console.error(err);
+
+        return res.status(500).json({
+          message: "Erreur serveur"
+        });
+      }
+
+      if (result.length === 0) {
+        return res.status(404).json({
+          message: "Administrateur introuvable"
+        });
+      }
+
+      const admin = result[0];
+
+      const code = Math.floor(
+        100000 + Math.random() * 900000
+      ).toString();
+
+      const expire = new Date(
+        Date.now() + 10 * 60 * 1000
+      );
+
+      db.query(
+        `
+        INSERT INTO email_verifications
+        (user_id, code, type, expires_at)
+        VALUES (?, ?, 'reset', ?)
+        `,
+        [admin.id, code, expire],
+        async (err) => {
+
+          if (err) {
+            console.error("ERREUR CODE RESET ADMIN :", err);
+
+            return res.status(500).json({
+              message: "Impossible de générer le code"
+            });
+          }
+
+          try {
+
+            await client.transactionalEmails.sendTransacEmail({
+
+              sender: {
+                name: "ArenaFoot",
+                email: "arenafoot.app@gmail.com"
+              },
+
+              to: [
+                {
+                  email: admin.email
+                }
+              ],
+
+              subject: "Réinitialisation du mot de passe administrateur",
+
+              htmlContent: `
+                <h2>ArenaFoot 🔐</h2>
+
+                <p>Bonjour ${admin.name || "Administrateur"},</p>
+
+                <p>
+                  Voici votre code de vérification :
+                </p>
+
+                <h1 style="color:#2563eb">
+                  ${code}
+                </h1>
+
+                <p>
+                  Ce code expire dans 10 minutes.
+                </p>
+
+                <p>
+                  Si vous n'êtes pas à l'origine de cette demande,
+                  ignorez simplement cet email.
+                </p>
+              `
+
+            });
+
+            res.json({
+              message: "Code envoyé"
+            });
+
+          } catch (error) {
+
+            console.error(
+              "ERREUR BREVO RESET ADMIN :",
+              error
+            );
+
+            res.status(500).json({
+              message: "Impossible d'envoyer le code"
+            });
+
+          }
+
+        }
+      );
+
+    }
+  );
+
+};
+
+
+
+
+exports.verifyResetCode = (req, res) => {
+
+  const { email, code } = req.body;
+
+  if (!email || !code) {
+    return res.status(400).json({
+      message: "Email et code requis"
+    });
+  }
+
+  const sql = `
+    SELECT
+      ev.id,
+      ev.user_id,
+      ev.code,
+      ev.expires_at
+    FROM email_verifications ev
+
+    JOIN users u
+      ON ev.user_id = u.id
+
+    WHERE u.email = ?
+      AND u.role = 'admin'
+      AND ev.type = 'reset'
+
+    ORDER BY ev.id DESC
+    LIMIT 1
+  `;
+
+  db.query(sql, [email], (err, result) => {
+
+    if (err) {
+      return res.status(500).json(err);
+    }
+
+    if (result.length === 0) {
+      return res.status(404).json({
+        message: "Aucun code trouvé"
+      });
+    }
+
+    const verification = result[0];
+
+    if (verification.code !== code) {
+      return res.status(400).json({
+        message: "Code incorrect"
+      });
+    }
+
+    if (
+      new Date() >
+      new Date(verification.expires_at)
+    ) {
+      return res.status(400).json({
+        message: "Code expiré"
+      });
+    }
+
+    res.json({
+      message: "Code vérifié",
+      user_id: verification.user_id
+    });
+
+  });
+
+};
+
+
+
+
+exports.resetPassword = async (req, res) => {
+
+  const {
+    email,
+    code,
+    password
+  } = req.body;
+
+  if (!email || !code || !password) {
+    return res.status(400).json({
+      message: "Email, code et nouveau mot de passe requis"
+    });
+  }
+
+  db.query(
+    `
+    SELECT
+      ev.id,
+      ev.user_id,
+      ev.code,
+      ev.expires_at
+    FROM email_verifications ev
+
+    JOIN users u
+      ON ev.user_id = u.id
+
+    WHERE u.email = ?
+      AND u.role = 'admin'
+      AND ev.type = 'reset'
+
+    ORDER BY ev.id DESC
+    LIMIT 1
+    `,
+    [email],
+    async (err, result) => {
+
+      if (err) {
+        return res.status(500).json(err);
+      }
+
+      if (result.length === 0) {
+        return res.status(404).json({
+          message: "Code introuvable"
+        });
+      }
+
+      const verification = result[0];
+
+      if (verification.code !== code) {
+        return res.status(400).json({
+          message: "Code incorrect"
+        });
+      }
+
+      if (
+        new Date() >
+        new Date(verification.expires_at)
+      ) {
+        return res.status(400).json({
+          message: "Code expiré"
+        });
+      }
+
+      try {
+
+        const hash = await bcrypt.hash(
+          password,
+          10
+        );
+
+        db.query(
+          `
+          UPDATE users
+          SET password = ?
+          WHERE id = ?
+          AND role = 'admin'
+          `,
+          [hash, verification.user_id],
+          (err) => {
+
+            if (err) {
+              return res.status(500).json(err);
+            }
+
+            db.query(
+              `
+              DELETE FROM email_verifications
+              WHERE id = ?
+              `,
+              [verification.id]
+            );
+
+            res.json({
+              message:
+                "Mot de passe administrateur modifié avec succès 🎉"
+            });
+
+          }
+        );
+
+      } catch (error) {
+
+        console.error(error);
+
+        res.status(500).json({
+          message: "Erreur lors de la modification du mot de passe"
+        });
+
+      }
+
+    }
+  );
+
 };
