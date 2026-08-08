@@ -17,6 +17,21 @@ app.use(rateLimit({
     max: 10000
 }));
 
+// ==========================================
+// 🔐 PROTECTION CONNEXION ADMIN
+// ==========================================
+
+const adminLoginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // maximum 5 tentatives
+    standardHeaders: true,
+    legacyHeaders: false,
+
+    message: {
+        message: "Trop de tentatives de connexion. Réessayez dans 15 minutes."
+    }
+});
+
 app.use(express.json());
 
 // =======================
@@ -93,7 +108,15 @@ console.log("CHARGEMENT ROOMS");
 app.use("/api/rooms", roomRoutes);
 
 console.log("CHARGEMENT ADMIN");
-app.use("/api/admin", adminRoutes);
+app.use(
+    "/api/admin/login",
+    adminLoginLimiter
+);
+
+app.use(
+    "/api/admin",
+    adminRoutes
+);
 
 console.log("CHARGEMENT REWARDS");
 app.use("/api/rewards", rewardRoutes);
