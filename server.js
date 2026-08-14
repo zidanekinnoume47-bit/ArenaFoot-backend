@@ -83,12 +83,10 @@ app.get("/", (req, res) => {
 
 app.get("/payment-success", (req, res) => {
 
-    console.log("Retour FedaPay :", req.query);
-
-    const { status, id } = req.query;
+    console.log("Retour navigateur FedaPay :", req.query);
 
     res.redirect(
-        `https://arenafoot-frontend-production.up.railway.app/dashboard?status=${status}&transaction=${id}`
+        "https://arenafoot-frontend-production.up.railway.app/dashboard"
     );
 
 });
