@@ -399,10 +399,11 @@ exports.webhook = (req, res) => {
     // Récupérer l'ID de transaction
     // ==================================
     const transactionId =
-        event.object?.id ||
-        event.data?.id ||
-        event.transaction?.id;
-
+    event.object?.id ||
+    event.object?.payment_source?.sourceable_id ||
+    event.data?.id ||
+    event.data?.object?.id ||
+    event.transaction?.id;
     if (!transactionId) {
 
         console.error(
