@@ -352,11 +352,11 @@ exports.webhook = (req, res) => {
     // ==================================
     try {
 
-        event = Webhook.constructEvent(
-            req.body,
-            signature,
-            secret
-        );
+       event = Webhook.constructEvent(
+    req.body.toString(),
+    signature,
+    secret
+);
 
     } catch (error) {
 
