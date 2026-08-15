@@ -395,30 +395,28 @@ exports.webhook = (req, res) => {
         });
     }
 
-    // ==================================
-    // Récupérer l'ID de transaction
-    // ==================================
-    const transactionId =
-    event.object?.id ||
-    event.object?.payment_source?.sourceable_id ||
-    event.data?.id ||
-    event.data?.object?.id ||
-    event.transaction?.id;
-    if (!transactionId) {
+    
+// Récupérer l'ID de transaction
+// ==================================
 
-        console.error(
-            "❌ Transaction ID introuvable"
-        );
+const transactionId = event.entity?.id;
 
-        return res.status(400).json({
-            message: "Transaction ID manquant"
-        });
-    }
+if (!transactionId) {
 
-    console.log(
-        "💳 Transaction approuvée :",
-        transactionId
+    console.error(
+        "❌ Transaction ID introuvable"
     );
+
+    return res.status(400).json({
+        message: "Transaction ID manquant"
+    });
+}
+
+console.log(
+    "💳 Transaction approuvée :",
+    transactionId
+);
+    
 
     // ==================================
     // Chercher le paiement dans notre BDD
