@@ -375,6 +375,11 @@ exports.webhook = (req, res) => {
         event.name
     );
 
+    console.log(
+    "📦 DONNÉES COMPLÈTES DU WEBHOOK :",
+    JSON.stringify(event, null, 2)
+);
+
     // ==================================
     // On s'intéresse uniquement au paiement approuvé
     // ==================================
