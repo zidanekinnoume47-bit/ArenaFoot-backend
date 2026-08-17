@@ -5,37 +5,36 @@ const Tournament = {
     // ==========================================
     // CRÉER UN TOURNOI
     // ==========================================
-    create: (data, callback) => {
+   create: (data, callback) => {
 
-        const sql = `
-            INSERT INTO tournaments
-            (
-                name,
-                entry_fee,
-                reward,
-                players_limit,
-                status,
-                description,
-                game
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        `;
+    const sql = `
+        INSERT INTO tournaments
+        (
+            name,
+            game,
+            entry_fee,
+            reward,
+            players_limit,
+            status,
+            description
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `;
 
-        db.query(
-            sql,
-            [
-                data.name,
-                data.entry_fee,
-                data.reward,
-                data.players_limit,
-                "open",
-                data.description,
-                data.game || "efootball"
-            ],
-            callback
-        );
-
-    },
+    db.query(
+        sql,
+        [
+            data.name,
+            data.game || "efootball",
+            data.entry_fee,
+            data.reward,
+            data.players_limit,
+            "open",
+            data.description
+        ],
+        callback
+    );
+},
 
 
     // ==========================================
