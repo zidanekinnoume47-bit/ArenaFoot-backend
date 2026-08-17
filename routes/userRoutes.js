@@ -7,6 +7,11 @@ router.post("/register", userController.register);
 
 router.post("/login", userController.login);
 
+router.post(
+    "/verify-login",
+    userController.verifyLogin
+);
+
 router.get("/ranking", userController.getRanking);
 
 router.get("/:id", userController.getUser);

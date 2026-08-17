@@ -201,102 +201,299 @@ res.json(result);
 
 // CONNEXION
 
-exports.login = (req,res)=>{
+// ==========================================
+// CONNEXION
+// ==========================================
+
+exports.login = (req, res) => {
+
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+
+        return res.status(400).json({
+            message: "Email et mot de passe requis"
+        });
+
+    }
 
 
-const {email,password}=req.body;
+    User.findByEmail(email, (err, result) => {
+
+        if (err) {
+
+            console.log("ERREUR LOGIN :", err);
+
+            return res.status(500).json({
+                message: "Erreur serveur"
+            });
+
+        }
 
 
+        if (!result || result.length === 0) {
 
-User.findByEmail(email,(err,result)=>{
+            return res.status(404).json({
+                message: "Utilisateur introuvable"
+            });
 
-
-if(err){
-
-return res.status(500).json({
-message:"Erreur serveur"
-});
-
-}
+        }
 
 
-if(result.length===0){
-
-return res.status(404).json({
-message:"Utilisateur introuvable"
-});
-
-}
+        const user = result[0];
 
 
+        // Vérifier que l'email du compte est déjà validé
 
-const user=result[0];
+        if (user.email_verified !== 1) {
 
-if (user.email_verified !== 1) {
+            return res.status(403).json({
+                message:
+                    "Veuillez vérifier votre adresse email avant de vous connecter."
+            });
 
-    return res.status(403).json({
-        message: "Veuillez vérifier votre adresse email avant de vous connecter."
+        }
+
+
+        // Vérifier le mot de passe
+
+        bcrypt.compare(
+            password,
+            user.password,
+            async (err, match) => {
+
+                if (err) {
+
+                    console.log(
+                        "ERREUR COMPARAISON PASSWORD :",
+                        err
+                    );
+
+                    return res.status(500).json({
+                        message: "Erreur serveur"
+                    });
+
+                }
+
+
+                if (!match) {
+
+                    return res.status(401).json({
+                        message: "Mot de passe incorrect"
+                    });
+
+                }
+
+
+                /*
+                 * ======================================
+                 * MOT DE PASSE CORRECT
+                 *
+                 * MAIS ON NE CRÉE PAS ENCORE LE JWT.
+                 * ======================================
+                 */
+
+
+                const code = Math.floor(
+                    100000 +
+                    Math.random() * 900000
+                ).toString();
+
+
+                const expire = new Date(
+                    Date.now() + 5 * 60 * 1000
+                );
+
+
+                /*
+                 * Supprimer les anciens codes
+                 * de connexion de cet utilisateur
+                 */
+
+                db.query(
+                    `
+                    DELETE FROM email_verifications
+                    WHERE user_id = ?
+                    AND type = 'login'
+                    `,
+                    [user.id],
+                    (err) => {
+
+                        if (err) {
+
+                            console.log(
+                                "ERREUR SUPPRESSION CODE LOGIN :",
+                                err
+                            );
+
+                            return res.status(500).json({
+                                message: "Erreur serveur"
+                            });
+
+                        }
+
+
+                        /*
+                         * Enregistrer le nouveau code
+                         */
+
+                        db.query(
+                            `
+                            INSERT INTO email_verifications
+                            (user_id, code, type, expires_at)
+                            VALUES (?, ?, 'login', ?)
+                            `,
+                            [
+                                user.id,
+                                code,
+                                expire
+                            ],
+                            async (err) => {
+
+                                if (err) {
+
+                                    console.log(
+                                        "ERREUR CODE LOGIN :",
+                                        err
+                                    );
+
+                                    return res.status(500).json({
+                                        message:
+                                            "Erreur génération du code"
+                                    });
+
+                                }
+
+
+                                /*
+                                 * Envoyer le code par email
+                                 */
+
+                                try {
+
+                                    await apiInstance
+                                        .transactionalEmails
+                                        .sendTransacEmail({
+
+                                            sender: {
+                                                name: "ArenaFoot",
+                                                email: "arenafoot.app@gmail.com"
+                                            },
+
+                                            to: [
+                                                {
+                                                    email: user.email
+                                                }
+                                            ],
+
+                                            subject:
+                                                "Code de connexion ArenaFoot",
+
+                                            htmlContent: `
+
+                                                <div style="
+                                                    font-family:Arial;
+                                                    max-width:600px;
+                                                    margin:auto;
+                                                    padding:30px;
+                                                ">
+
+                                                    <h2>
+                                                        🏆 ArenaFoot
+                                                    </h2>
+
+                                                    <p>
+                                                        Une tentative de
+                                                        connexion à votre
+                                                        compte ArenaFoot
+                                                        a été détectée.
+                                                    </p>
+
+                                                    <p>
+                                                        Votre code de
+                                                        connexion est :
+                                                    </p>
+
+                                                    <h1 style="
+                                                        color:#2563eb;
+                                                        font-size:36px;
+                                                        letter-spacing:8px;
+                                                    ">
+                                                        ${code}
+                                                    </h1>
+
+                                                    <p>
+                                                        Ce code expire
+                                                        dans 5 minutes.
+                                                    </p>
+
+                                                    <p>
+                                                        Si vous n'êtes pas
+                                                        à l'origine de cette
+                                                        connexion, ignorez
+                                                        cet email et changez
+                                                        votre mot de passe.
+                                                    </p>
+
+                                                </div>
+
+                                            `
+                                        });
+
+
+                                    console.log(
+                                        "CODE LOGIN ENVOYÉ À :",
+                                        user.email
+                                    );
+
+
+                                    /*
+                                     * IMPORTANT :
+                                     *
+                                     * On retourne seulement
+                                     * que le code a été envoyé.
+                                     *
+                                     * PAS DE JWT.
+                                     */
+
+                                    return res.json({
+
+                                        message:
+                                            "Code de connexion envoyé",
+
+                                        email:
+                                            user.email
+
+                                    });
+
+
+                                } catch (error) {
+
+                                    console.log(
+                                        "ERREUR BREVO LOGIN :",
+                                        error
+                                    );
+
+
+                                    return res.status(500).json({
+
+                                        message:
+                                            "Impossible d'envoyer le code de connexion"
+
+                                    });
+
+                                }
+
+                            }
+                        );
+
+                    }
+                );
+
+            }
+        );
+
     });
-
-}
-
-bcrypt.compare(
-password,
-user.password,
-(err,match)=>{
-
-
-if(!match){
-
-return res.status(401).json({
-message:"Mot de passe incorrect"
-});
-
-}
-
-
-
-// Création du token avec le rôle
-
-const token = jwt.sign(
-
-{
-id:user.id,
-email:user.email,
-role:user.role
-},
-
-process.env.JWT_SECRET,
-
-{
-expiresIn:"24h"
-}
-
-);
-
-
-
-res.json({
-
-message:"Connexion réussie",
-
-token,
-
-user:{
-id:user.id,
-pseudo:user.pseudo,
-efootball_id:user.efootball_id,
-role:user.role
-}
-
-});
-
-
-});
-
-
-});
-
 
 };
 
@@ -806,6 +1003,230 @@ exports.resetPassword = (req, res) => {
 
                         }
                     );
+
+                }
+            );
+
+        }
+    );
+
+};
+
+
+
+// ==========================================
+// VÉRIFICATION CODE DE CONNEXION
+// ==========================================
+
+exports.verifyLogin = (req, res) => {
+
+    const { email, code } = req.body;
+
+
+    if (!email || !code) {
+
+        return res.status(400).json({
+            message: "Email et code requis"
+        });
+
+    }
+
+
+    const sql = `
+
+        SELECT
+            ev.id,
+            ev.user_id,
+            ev.code,
+            ev.expires_at,
+
+            u.id AS user_id,
+            u.email,
+            u.pseudo,
+            u.efootball_id,
+            u.role
+
+        FROM email_verifications ev
+
+        JOIN users u
+        ON ev.user_id = u.id
+
+        WHERE u.email = ?
+
+        AND ev.type = 'login'
+
+        ORDER BY ev.id DESC
+
+        LIMIT 1
+
+    `;
+
+
+    db.query(
+        sql,
+        [email],
+        (err, result) => {
+
+            if (err) {
+
+                console.log(
+                    "ERREUR VERIFY LOGIN :",
+                    err
+                );
+
+                return res.status(500).json({
+                    message: "Erreur serveur"
+                });
+
+            }
+
+
+            if (
+                !result ||
+                result.length === 0
+            ) {
+
+                return res.status(404).json({
+                    message:
+                        "Aucun code de connexion trouvé"
+                });
+
+            }
+
+
+            const verification =
+                result[0];
+
+
+            /*
+             * Vérifier expiration
+             */
+
+            if (
+                new Date() >
+                new Date(
+                    verification.expires_at
+                )
+            ) {
+
+                db.query(
+                    `
+                    DELETE FROM email_verifications
+                    WHERE id = ?
+                    `,
+                    [verification.id]
+                );
+
+
+                return res.status(400).json({
+                    message: "Code expiré"
+                });
+
+            }
+
+
+            /*
+             * Vérifier le code
+             */
+
+            if (
+                verification.code !==
+                code.toString()
+            ) {
+
+                return res.status(400).json({
+                    message: "Code incorrect"
+                });
+
+            }
+
+
+            /*
+             * Code correct
+             *
+             * On supprime immédiatement
+             * le code pour empêcher sa
+             * réutilisation.
+             */
+
+            db.query(
+                `
+                DELETE FROM email_verifications
+                WHERE id = ?
+                `,
+                [verification.id],
+                (deleteError) => {
+
+                    if (deleteError) {
+
+                        console.log(
+                            "ERREUR SUPPRESSION CODE :",
+                            deleteError
+                        );
+
+                        return res.status(500).json({
+                            message: "Erreur serveur"
+                        });
+
+                    }
+
+
+                    /*
+                     * ==================================
+                     * MAINTENANT seulement :
+                     * CRÉATION DU JWT
+                     * ==================================
+                     */
+
+                    const token = jwt.sign(
+
+                        {
+                            id:
+                                verification.user_id,
+
+                            email:
+                                verification.email,
+
+                            role:
+                                verification.role
+                        },
+
+                        process.env.JWT_SECRET,
+
+                        {
+                            expiresIn: "24h"
+                        }
+
+                    );
+
+
+                    return res.json({
+
+                        message:
+                            "Connexion vérifiée avec succès",
+
+                        token,
+
+                        user: {
+
+                            id:
+                                verification.user_id,
+
+                            pseudo:
+                                verification.pseudo,
+
+                            email:
+                                verification.email,
+
+                            efootball_id:
+                                verification.efootball_id,
+
+                            role:
+                                verification.role
+
+                        }
+
+                    });
 
                 }
             );
