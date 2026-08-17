@@ -195,10 +195,44 @@ exports.createPayment = async (req, res) => {
                         // ==============================
                         // Créer transaction FedaPay
                         // ==============================
-                        try {
+                        // ==============================
+// Récupérer les informations du joueur
+// ==============================
 
-                            const transaction =
-                                await FedaPay.Transaction.create({
+const userSql = `
+    SELECT id, name, pseudo, email, phone
+    FROM users
+    WHERE id = ?
+    LIMIT 1
+`;
+
+const users = await new Promise((resolve, reject) => {
+    db.query(userSql, [userId], (err, result) => {
+        if (err) return reject(err);
+        resolve(result);
+    });
+});
+
+if (users.length === 0) {
+    return res.status(404).json({
+        message: "Utilisateur introuvable"
+    });
+}
+
+const user = users[0];
+
+console.log("👤 JOUEUR POUR FEDAPAY :", user);
+
+// ==============================
+// Créer transaction FedaPay
+// ==============================
+
+try {
+
+    const transaction =
+        await FedaPay.Transaction.create({
+
+                                    
 
                                     description:
                                         `Inscription tournoi ${tournament.name}`,
@@ -209,20 +243,16 @@ exports.createPayment = async (req, res) => {
                                         iso: "XOF"
                                     },
 
+                                    
+
                                     callback_url:
                                         "https://arenafoot-backend-production.up.railway.app/payment-success",
 
                                     customer: {
-                                        firstname:
-                                            data.firstname || "Joueur",
-
-                                        lastname:
-                                            data.lastname || "ArenaFoot",
-
-                                        email:
-                                            data.email ||
-                                            "client@arenafoot.com"
-                                    }
+    firstname: user.pseudo || user.name || "Joueur",
+    lastname: user.name || "ArenaFoot",
+    email: user.email
+}
                                 });
 
                             const token =
