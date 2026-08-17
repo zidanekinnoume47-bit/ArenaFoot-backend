@@ -1682,54 +1682,49 @@ exports.finishMatch = (req, res) => {
                                                 // ---------------------------------------------
 
                                                 db.query(
-                                                    `
-                                                    SELECT
-                                                        player_one,
-                                                        player_two
-                                                    FROM matches
-                                                    WHERE id = ?
-                                                    `,
-                                                    [thirdMatchId],
-                                                    (err, third) => {
+    `
+    SELECT
+        player_one,
+        player_two
+    FROM matches
+    WHERE id = ?
+    `,
+    [thirdMatchId],
+    (err, thirdRows) => {
 
-                                                        if (err) {
-                                                            return res
-                                                                .status(500)
-                                                                .json(err);
-                                                        }
+        if (err) {
+            return res
+                .status(500)
+                .json(err);
+        }
 
+        const thirdMatch =
+            thirdRows[0];
 
-                                                        const third =
-                                                            third[0];
-
-
-                                                        let sql;
-                                                        let slot;
+        let sql;
+        let slot;
 
 
-                                                        if (
-                                                            !third.player_one
-                                                        ) {
+                                                        if (!thirdMatch.player_one) {
 
-                                                            sql = `
-                                                                UPDATE matches
-                                                                SET player_one = ?
-                                                                WHERE id = ?
-                                                            `;
+    sql = `
+        UPDATE matches
+        SET player_one = ?
+        WHERE id = ?
+    `;
 
-                                                            slot = 1;
+    slot = 1;
 
-                                                        } else {
+} else {
 
-                                                            sql = `
-                                                                UPDATE matches
-                                                                SET player_two = ?
-                                                                WHERE id = ?
-                                                            `;
+    sql = `
+        UPDATE matches
+        SET player_two = ?
+        WHERE id = ?
+    `;
 
-                                                            slot = 2;
-
-                                                        }
+    slot = 2;
+}
 
 
                                                         db.query(
