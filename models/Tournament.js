@@ -2,105 +2,118 @@ const db = require("../config/database");
 
 const Tournament = {
 
-create:(data, callback)=>{
+    // ==========================================
+    // CRÉER UN TOURNOI
+    // ==========================================
+    create: (data, callback) => {
 
-const sql = `
+        const sql = `
+            INSERT INTO tournaments
+            (
+                name,
+                entry_fee,
+                reward,
+                players_limit,
+                status,
+                description,
+                game
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `;
 
-INSERT INTO tournaments
-(name, entry_fee, reward, players_limit, status, description)
+        db.query(
+            sql,
+            [
+                data.name,
+                data.entry_fee,
+                data.reward,
+                data.players_limit,
+                "open",
+                data.description,
+                data.game || "efootball"
+            ],
+            callback
+        );
 
-VALUES(?,?,?,?,?,?)
-
-`;
-
-db.query(
-sql,
-[
-data.name,
-data.entry_fee,
-data.reward,
-data.players_limit,
-"open",
-data.description
-],
-callback
-);
-
-},
-
-
-
-getAll:(callback)=>{
-
-const sql = `
-SELECT
-tournaments.*,
-COUNT(tournament_players.id) AS players_count
-
-FROM tournaments
-
-LEFT JOIN tournament_players
-
-ON tournaments.id = tournament_players.tournament_id
-
-GROUP BY tournaments.id
-`;
-
-db.query(
-sql,
-callback
-);
-
-},
-
-getById:(id, callback)=>{
-
-const sql = `
-
-SELECT 
-tournaments.*,
-COUNT(tournament_players.player_id) AS players_count
-
-FROM tournaments
-
-LEFT JOIN tournament_players
-
-ON tournaments.id = tournament_players.tournament_id
-
-WHERE tournaments.id = ?
-
-GROUP BY tournaments.id
-
-`;
-
-db.query(
-sql,
-[id],
-callback
-);
-
-},
+    },
 
 
-// ✅ Nouvelle fonction
-updateStatus:(id,status,callback)=>{
+    // ==========================================
+    // RÉCUPÉRER TOUS LES TOURNOIS
+    // ==========================================
+    getAll: (callback) => {
 
-const sql = `
-UPDATE tournaments
-SET status = ?
-WHERE id = ?
-`;
+        const sql = `
+            SELECT
+                tournaments.*,
+                COUNT(tournament_players.id) AS players_count
 
-db.query(
-sql,
-[
-status,
-id
-],
-callback
-);
+            FROM tournaments
 
-}
+            LEFT JOIN tournament_players
+            ON tournaments.id = tournament_players.tournament_id
+
+            GROUP BY tournaments.id
+        `;
+
+        db.query(
+            sql,
+            callback
+        );
+
+    },
+
+
+    // ==========================================
+    // RÉCUPÉRER UN TOURNOI
+    // ==========================================
+    getById: (id, callback) => {
+
+        const sql = `
+            SELECT
+                tournaments.*,
+                COUNT(tournament_players.player_id) AS players_count
+
+            FROM tournaments
+
+            LEFT JOIN tournament_players
+            ON tournaments.id = tournament_players.tournament_id
+
+            WHERE tournaments.id = ?
+
+            GROUP BY tournaments.id
+        `;
+
+        db.query(
+            sql,
+            [id],
+            callback
+        );
+
+    },
+
+
+    // ==========================================
+    // MODIFIER LE STATUT
+    // ==========================================
+    updateStatus: (id, status, callback) => {
+
+        const sql = `
+            UPDATE tournaments
+            SET status = ?
+            WHERE id = ?
+        `;
+
+        db.query(
+            sql,
+            [
+                status,
+                id
+            ],
+            callback
+        );
+
+    }
 
 };
 

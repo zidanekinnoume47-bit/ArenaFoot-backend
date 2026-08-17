@@ -30,6 +30,131 @@ exports.tournaments = (req, res) => {
   });
 };
 
+
+// ==========================================
+// CRÉER UN TOURNOI
+// ==========================================
+
+exports.createTournament = (req, res) => {
+
+  const {
+    name,
+    entry_fee,
+    reward,
+    players_limit,
+    description,
+    game
+  } = req.body;
+
+  // Vérification des informations obligatoires
+  if (
+    !name ||
+    entry_fee === undefined ||
+    reward === undefined ||
+    !players_limit
+  ) {
+    return res.status(400).json({
+      message: "Informations du tournoi incomplètes"
+    });
+  }
+
+  // Jeux autorisés
+  const allowedGames = [
+    "efootball",
+    "call_of_duty"
+  ];
+
+  const selectedGame = game || "efootball";
+
+  if (!allowedGames.includes(selectedGame)) {
+    return res.status(400).json({
+      message: "Jeu non supporté"
+    });
+  }
+
+  // Vérification des limites
+  const limit = Number(players_limit);
+
+  if (!Number.isInteger(limit) || limit <= 0) {
+    return res.status(400).json({
+      message: "Nombre de joueurs invalide"
+    });
+  }
+
+  // Règles Call of Duty
+  if (
+    selectedGame === "call_of_duty" &&
+    limit !== 32
+  ) {
+    return res.status(400).json({
+      message: "Un tournoi Call of Duty doit avoir exactement 32 joueurs"
+    });
+  }
+
+  // Règles eFootball
+  if (
+    selectedGame === "efootball" &&
+    limit !== 16 &&
+    limit !== 32 &&
+    limit !== 64 &&
+    limit !== 128
+  ) {
+    return res.status(400).json({
+      message:
+        "Nombre de joueurs eFootball non autorisé"
+    });
+  }
+
+  const sql = `
+    INSERT INTO tournaments
+    (
+      name,
+      entry_fee,
+      reward,
+      players_limit,
+      status,
+      description,
+      game
+    )
+    VALUES (?, ?, ?, ?, 'open', ?, ?)
+  `;
+
+  db.query(
+    sql,
+    [
+      name,
+      Number(entry_fee),
+      Number(reward),
+      limit,
+      description || "",
+      selectedGame
+    ],
+    (err, result) => {
+
+      if (err) {
+
+        console.error(
+          "ERREUR CREATION TOURNOI :",
+          err
+        );
+
+        return res.status(500).json({
+          message: "Erreur lors de la création du tournoi",
+          error: err.message
+        });
+      }
+
+      return res.status(201).json({
+        message: "Tournoi créé avec succès 🏆",
+        tournament_id: result.insertId,
+        game: selectedGame
+      });
+
+    }
+  );
+
+};
+
 /**
  * VALIDER UN PAIEMENT / RECOMPENSE ET RELANCER AUTOMATIQUEMENT LE TOURNOI
  */

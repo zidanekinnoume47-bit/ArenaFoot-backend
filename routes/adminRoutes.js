@@ -54,6 +54,12 @@ router.get(
   adminController.tournaments
 );
 
+router.post(
+  "/tournament",
+  adminAuth,
+  adminController.createTournament
+);
+
 router.put(
   "/payment/:id",
   adminAuth,

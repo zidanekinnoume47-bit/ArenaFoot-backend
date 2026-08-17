@@ -146,23 +146,31 @@ exports.joinTournament = (req, res) => {
                                                 return;
                                             }
 
-                                            if(paid[0].total >= 16){
-                                                const updateStatus = `
-                                                    UPDATE tournaments
-                                                    SET status='full'
-                                                    WHERE id=?
-                                                `;
+                                           const playersLimit = tournament[0].players_limit || 16;
 
-                                                db.query(
-                                                    updateStatus,
-                                                    [tournament_id],
-                                                    (updateError) => {
-                                                        if(updateError){
-                                                            console.log("Erreur changement statut :", updateError);
-                                                        }
-                                                    }
-                                                );
-                                            }
+if (paid[0].total >= playersLimit) {
+
+    const updateStatus = `
+        UPDATE tournaments
+        SET status='full'
+        WHERE id=?
+    `;
+
+    db.query(
+        updateStatus,
+        [tournament_id],
+        (updateError) => {
+
+            if (updateError) {
+                console.log(
+                    "Erreur changement statut :",
+                    updateError
+                );
+            }
+
+        }
+    );
+}
                                         }
                                     );
 
