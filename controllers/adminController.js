@@ -26,10 +26,11 @@ exports.tournaments = (req, res) => {
       t.*,
 
       (
-        SELECT COUNT(*)
-        FROM tournament_players tp
-        WHERE tp.tournament_id = t.id
-      ) AS players_count
+    SELECT COUNT(*)
+    FROM tournament_players tp
+    WHERE tp.tournament_id = t.id
+    AND tp.payment_status = 'paid'
+) AS players_count
 
     FROM tournaments t
     ORDER BY t.id DESC
