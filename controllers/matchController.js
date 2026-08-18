@@ -452,7 +452,7 @@ exports.generateMatches = (req, res) => {
     );
 };
 
-const generateCallOfDutyBracket = (tournament_id, res) => {
+exports.generateCallOfDutyMatches = (tournament_id, res) => {
 
     const sql = `
         SELECT player_id
