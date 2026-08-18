@@ -1610,244 +1610,206 @@ exports.finishMatch = (req, res) => {
 
 
                             // =================================================
-                            // 🔥 DEMI-FINALE COD
-                            // =================================================
+// 🔥 DEMI-FINALE CALL OF DUTY
+// Gagnant → Finale
+// Perdant → Match pour la 3e place
+// =================================================
 
-                            if (
-                                match.round ===
-                                "Demi-finale"
-                            ) {
+if (match.round === "Demi-finale") {
 
-                                // ---------------------------------------------
-                                // Le gagnant va en finale
-                                // ---------------------------------------------
+    // =============================================
+    // 1️⃣ Envoyer le gagnant vers la finale
+    // =============================================
 
-                                db.query(
-                                    `
-                                    UPDATE matches
-                                    SET player_one = ?
-                                    WHERE id = ?
-                                    `,
-                                    [winner, match.next_match_id],
-                                    (err) => {
+    db.query(
+        `
+        SELECT id
+        FROM matches
+        WHERE tournament_id = ?
+        AND round = 'Finale'
+        LIMIT 1
+        `,
+        [match.tournament_id],
+        (err, finalRows) => {
 
-                                        if (err) {
-                                            return res.status(500).json(err);
-                                        }
+            if (err) {
+                return res.status(500).json(err);
+            }
 
+            if (finalRows.length === 0) {
+                return res.status(500).json({
+                    message: "Finale introuvable"
+                });
+            }
 
-                                        // ---------------------------------------------
-                                        // Trouver le match 3e place
-                                        // ---------------------------------------------
+            const finalId = finalRows[0].id;
 
-                                        db.query(
-                                            `
-                                            SELECT id
-                                            FROM matches
-                                            WHERE tournament_id = ?
-                                            AND round = 'Match pour la 3e place'
-                                            LIMIT 1
-                                            `,
-                                            [match.tournament_id],
-                                            (err, thirdMatch) => {
+            // Déterminer la position de la demi-finale
+            const finalSlot =
+                match.position === 1 ? 1 : 2;
 
-                                                if (err) {
-                                                    return res
-                                                        .status(500)
-                                                        .json(err);
-                                                }
+            const finalColumn =
+                finalSlot === 1
+                    ? "player_one"
+                    : "player_two";
 
-                                                if (
-                                                    thirdMatch.length === 0
-                                                ) {
-                                                    return res.status(500).json({
-                                                        message:
-                                                            "Match pour la 3e place introuvable"
-                                                    });
-                                                }
+            db.query(
+                `
+                UPDATE matches
+                SET ${finalColumn} = ?
+                WHERE id = ?
+                `,
+                [winner, finalId],
+                (err) => {
 
+                    if (err) {
+                        return res.status(500).json(err);
+                    }
 
-                                                const thirdMatchId =
-                                                    thirdMatch[0].id;
+                    // =============================================
+                    // 2️⃣ Chercher le match pour la 3e place
+                    // =============================================
 
+                    db.query(
+                        `
+                        SELECT id, player_one, player_two
+                        FROM matches
+                        WHERE tournament_id = ?
+                        AND round = 'Match pour la 3e place'
+                        LIMIT 1
+                        `,
+                        [match.tournament_id],
+                        (err, thirdRows) => {
 
-                                                // ---------------------------------------------
-                                                // Le perdant va au match 3e place
-                                                // ---------------------------------------------
+                            if (err) {
+                                return res.status(500).json(err);
+                            }
+
+                            if (thirdRows.length === 0) {
+                                return res.status(500).json({
+                                    message:
+                                        "Match pour la 3e place introuvable"
+                                });
+                            }
+
+                            const thirdMatch = thirdRows[0];
+
+                            // =============================================
+                            // 3️⃣ Envoyer le perdant vers la petite finale
+                            // =============================================
+
+                            const thirdColumn =
+                                !thirdMatch.player_one
+                                    ? "player_one"
+                                    : "player_two";
+
+                            db.query(
+                                `
+                                UPDATE matches
+                                SET ${thirdColumn} = ?
+                                WHERE id = ?
+                                `,
+                                [
+                                    loser,
+                                    thirdMatch.id
+                                ],
+                                (err) => {
+
+                                    if (err) {
+                                        return res.status(500).json(err);
+                                    }
+
+                                    // =============================================
+                                    // 4️⃣ Vérifier la finale
+                                    // =============================================
+
+                                    db.query(
+                                        `
+                                        SELECT player_one, player_two
+                                        FROM matches
+                                        WHERE id = ?
+                                        `,
+                                        [finalId],
+                                        (err, finalPlayers) => {
+
+                                            if (err) {
+                                                return res.status(500).json(err);
+                                            }
+
+                                            if (
+                                                finalPlayers[0]?.player_one &&
+                                                finalPlayers[0]?.player_two
+                                            ) {
 
                                                 db.query(
-    `
-    SELECT
-        player_one,
-        player_two
-    FROM matches
-    WHERE id = ?
-    `,
-    [thirdMatchId],
-    (err, thirdRows) => {
-
-        if (err) {
-            return res
-                .status(500)
-                .json(err);
-        }
-
-        const thirdMatch =
-            thirdRows[0];
-
-        let sql;
-        let slot;
-
-
-                                                        if (!thirdMatch.player_one) {
-
-    sql = `
-        UPDATE matches
-        SET player_one = ?
-        WHERE id = ?
-    `;
-
-    slot = 1;
-
-} else {
-
-    sql = `
-        UPDATE matches
-        SET player_two = ?
-        WHERE id = ?
-    `;
-
-    slot = 2;
-}
-
-
-                                                        db.query(
-                                                            sql,
-                                                            [
-                                                                loser,
-                                                                thirdMatchId
-                                                            ],
-                                                            (err) => {
-
-                                                                if (err) {
-                                                                    return res
-                                                                        .status(500)
-                                                                        .json(err);
-                                                                }
-
-
-                                                                // Vérifier si les deux
-                                                                // perdants sont présents
-
-                                                                db.query(
-                                                                    `
-                                                                    SELECT
-                                                                        player_one,
-                                                                        player_two
-                                                                    FROM matches
-                                                                    WHERE id = ?
-                                                                    `,
-                                                                    [thirdMatchId],
-                                                                    (err, players) => {
-
-                                                                        if (err) {
-                                                                            return res
-                                                                                .status(500)
-                                                                                .json(err);
-                                                                        }
-
-
-                                                                        const thirdMatch =
-                                                                            players[0];
-
-
-                                                                        if (
-                                                                            thirdMatch.player_one &&
-                                                                            thirdMatch.player_two
-                                                                        ) {
-
-                                                                            db.query(
-                                                                                `
-                                                                                UPDATE matches
-                                                                                SET status = 'pending'
-                                                                                WHERE id = ?
-                                                                                `,
-                                                                                [thirdMatchId]
-                                                                            );
-
-                                                                        }
-
-
-                                                                        // -----------------------------------------
-                                                                        // Vérifier la finale
-                                                                        // -----------------------------------------
-
-                                                                        db.query(
-                                                                            `
-                                                                            SELECT
-                                                                                player_one,
-                                                                                player_two
-                                                                            FROM matches
-                                                                            WHERE id = ?
-                                                                            `,
-                                                                            [
-                                                                                match.next_match_id
-                                                                            ],
-                                                                            (err, finalPlayers) => {
-
-                                                                                if (err) {
-                                                                                    return res
-                                                                                        .status(500)
-                                                                                        .json(err);
-                                                                                }
-
-
-                                                                                if (
-                                                                                    finalPlayers[0]
-                                                                                        .player_one &&
-                                                                                    finalPlayers[0]
-                                                                                        .player_two
-                                                                                ) {
-
-                                                                                    db.query(
-                                                                                        `
-                                                                                        UPDATE matches
-                                                                                        SET status = 'pending'
-                                                                                        WHERE id = ?
-                                                                                        `,
-                                                                                        [
-                                                                                            match.next_match_id
-                                                                                        ]
-                                                                                    );
-
-                                                                                }
-
-
-                                                                                return res.json({
-                                                                                    message:
-                                                                                        "🏆 Gagnant qualifié pour la finale et perdant envoyé au match pour la 3e place."
-                                                                                });
-
-                                                                            }
-                                                                        );
-
-                                                                    }
-                                                                );
-
-                                                            }
-                                                        );
-
-                                                    }
+                                                    `
+                                                    UPDATE matches
+                                                    SET status = 'pending'
+                                                    WHERE id = ?
+                                                    `,
+                                                    [finalId]
                                                 );
 
                                             }
-                                        );
 
-                                    }
-                                );
+                                            // =============================================
+                                            // 5️⃣ Vérifier la petite finale
+                                            // =============================================
 
-                                return;
-                            }
+                                            db.query(
+                                                `
+                                                SELECT player_one, player_two
+                                                FROM matches
+                                                WHERE id = ?
+                                                `,
+                                                [thirdMatch.id],
+                                                (err, thirdPlayers) => {
+
+                                                    if (err) {
+                                                        return res.status(500).json(err);
+                                                    }
+
+                                                    if (
+                                                        thirdPlayers[0]?.player_one &&
+                                                        thirdPlayers[0]?.player_two
+                                                    ) {
+
+                                                        db.query(
+                                                            `
+                                                            UPDATE matches
+                                                            SET status = 'pending'
+                                                            WHERE id = ?
+                                                            `,
+                                                            [thirdMatch.id]
+                                                        );
+
+                                                    }
+
+                                                    return res.json({
+                                                        message:
+                                                            "🏆 Demi-finale terminée : gagnant → finale, perdant → match pour la 3e place."
+                                                    });
+
+                                                }
+                                            );
+
+                                        }
+                                    );
+
+                                }
+                            );
+
+                        }
+                    );
+
+                }
+            );
+
+        }
+    );
+
+    return;
+}
 
 
                             // =================================================
