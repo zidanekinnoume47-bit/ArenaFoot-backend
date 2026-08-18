@@ -1549,8 +1549,8 @@ exports.finishMatch = (req, res) => {
                             // =================================================
 
                             if (
-                                match.round ===
-                                "Match pour la 3e place"
+                                match.round === "Petite finale" ||
+                                match.round === "Match pour la 3e place"
                             ) {
 
                                 const THIRD_PRIZE = 10000;
@@ -1675,7 +1675,10 @@ if (match.round === "Demi-finale") {
                         SELECT id, player_one, player_two
                         FROM matches
                         WHERE tournament_id = ?
-                        AND round = 'Petite finale'
+                        AND (
+                            round = 'Petite finale'
+                            OR round = 'Match pour la 3e place'
+                        )
                         LIMIT 1
                         `,
                         [match.tournament_id],
