@@ -20,14 +20,45 @@ exports.players = (req, res) => {
 
 // Voir les tournois
 exports.tournaments = (req, res) => {
-  db.query("SELECT * FROM tournaments", (err, result) => {
-    console.log("TOURNOIS :", result);
+
+  const sql = `
+    SELECT
+      t.*,
+
+      (
+        SELECT COUNT(*)
+        FROM tournament_players tp
+        WHERE tp.tournament_id = t.id
+      ) AS players_count
+
+    FROM tournaments t
+    ORDER BY t.id DESC
+  `;
+
+  db.query(sql, (err, result) => {
+
     if (err) {
-      console.log(err);
-      return res.status(500).json(err);
+
+      console.error(
+        "ERREUR TOURNOIS ADMIN :",
+        err
+      );
+
+      return res.status(500).json({
+        message: "Erreur récupération des tournois"
+      });
+
     }
+
+    console.log(
+      "TOURNOIS ADMIN :",
+      result
+    );
+
     res.json(result);
+
   });
+
 };
 
 
@@ -216,163 +247,319 @@ exports.validatePayment = (req, res) => {
  * LOGIQUE DE SIMULATION : Ajouter 15 joueurs de test avec comptes + inscriptions + paiements validés
  */
 exports.createTestPlayers = (req, res) => {
+
     const tournament_id = req.params.id;
     const timestamp = Date.now();
 
     const password =
         "$2b$10$7EqJtq98hPqEX7fNZaFWoO4O5x4Yz9W5s6QJ7sV4vF6Jz1x9JQ2O6";
 
+    // ==========================================
+    // RÉCUPÉRER LE TOURNOI
+    // ==========================================
+
     db.query(
-        "SELECT entry_fee, players_limit, game FROM tournaments WHERE id = ?",
+        `
+        SELECT
+            entry_fee,
+            players_limit,
+            game
+        FROM tournaments
+        WHERE id = ?
+        `,
         [tournament_id],
         (err, tourneyResult) => {
 
             if (err) {
+
+                console.error(err);
+
                 return res.status(500).json({
                     error: err.message
                 });
+
             }
 
             if (tourneyResult.length === 0) {
+
                 return res.status(404).json({
                     error: "Tournoi introuvable"
                 });
+
             }
 
             const tournament = tourneyResult[0];
 
-            const entryFee = tournament.entry_fee || 0;
-            const playersLimit = Number(tournament.players_limit) || 16;
+            const entryFee =
+                Number(tournament.entry_fee) || 0;
 
-            let addedCount = 0;
+            const playersLimit =
+                Number(tournament.players_limit) || 16;
 
-            const insertSinglePlayer = (index) => {
+            // ==========================================
+            // COMPTER LES JOUEURS DÉJÀ INSCRITS
+            // ==========================================
 
-                // On a atteint la limite du tournoi
-                if (index > playersLimit) {
+            db.query(
+                `
+                SELECT COUNT(*) AS total
+                FROM tournament_players
+                WHERE tournament_id = ?
+                `,
+                [tournament_id],
+                (err, countResult) => {
 
-                    return res.json({
-                        message:
-                            `Simulation terminée : ${addedCount} joueurs test créés et marqués comme 'paid' ! 🏆`,
-                        players_added: addedCount,
-                        players_limit: playersLimit
-                    });
+                    if (err) {
 
-                }
+                        console.error(err);
 
-                const user = {
-                    name: `Test Player ${index}`,
+                        return res.status(500).json({
+                            error: err.message
+                        });
 
-                    pseudo:
-                        `TestPlayer_${timestamp}_${index}`,
+                    }
 
-                    email:
-                        `test_${timestamp}_${index}@arenafoot.com`,
+                    const currentPlayers =
+                        Number(countResult[0].total) || 0;
 
-                    phone:
-                        `97${String(index).padStart(6, "0")}`,
+                    // ==========================================
+                    // TOURNOI DÉJÀ COMPLET
+                    // ==========================================
 
-                    efootball_id:
-                        `EFOOT_${timestamp}_${index}`,
+                    if (currentPlayers >= playersLimit) {
 
-                    password
-                };
+                        return res.status(400).json({
 
-                db.query(
-                    `
-                    INSERT INTO users
-                    (name, pseudo, email, phone, efootball_id, password)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    `,
-                    [
-                        user.name,
-                        user.pseudo,
-                        user.email,
-                        user.phone,
-                        user.efootball_id,
-                        user.password
-                    ],
-                    (err, userRes) => {
+                            message:
+                                `Le tournoi est déjà complet (${currentPlayers}/${playersLimit}).`,
 
-                        if (err) {
+                            players_added: 0,
 
-                            console.error(
-                                `Erreur création user ${index}:`,
-                                err
-                            );
+                            players_count: currentPlayers,
 
-                            return insertSinglePlayer(index + 1);
+                            players_limit: playersLimit
+
+                        });
+
+                    }
+
+                    // ==========================================
+                    // NOMBRE DE JOUEURS À AJOUTER
+                    // ==========================================
+
+                    const remainingPlayers =
+                        playersLimit - currentPlayers;
+
+                    let addedCount = 0;
+
+                    // ==========================================
+                    // CRÉATION DES JOUEURS
+                    // ==========================================
+
+                    const insertSinglePlayer = (index) => {
+
+                        if (index > remainingPlayers) {
+
+                            return res.json({
+
+                                message:
+                                    `Simulation terminée : ${addedCount} joueurs test ajoutés. 🏆`,
+
+                                players_added:
+                                    addedCount,
+
+                                players_count:
+                                    currentPlayers + addedCount,
+
+                                players_limit:
+                                    playersLimit,
+
+                                game:
+                                    tournament.game
+
+                            });
+
                         }
 
-                        const newUserId = userRes.insertId;
+                        const user = {
+
+                            name:
+                                `Test Player ${currentPlayers + index}`,
+
+                            pseudo:
+                                `TestPlayer_${timestamp}_${currentPlayers + index}`,
+
+                            email:
+                                `test_${timestamp}_${currentPlayers + index}@arenafoot.com`,
+
+                            phone:
+                                `97${String(
+                                    currentPlayers + index
+                                ).padStart(6, "0")}`,
+
+                            efootball_id:
+                                `EFOOT_${timestamp}_${currentPlayers + index}`,
+
+                            password
+
+                        };
+
+                        // ==========================================
+                        // CRÉER LE COMPTE
+                        // ==========================================
 
                         db.query(
+
                             `
-                            INSERT INTO tournament_players
-                            (tournament_id, player_id, payment_status)
-                            VALUES (?, ?, 'paid')
+                            INSERT INTO users
+                            (
+                                name,
+                                pseudo,
+                                email,
+                                phone,
+                                efootball_id,
+                                password
+                            )
+                            VALUES (?, ?, ?, ?, ?, ?)
                             `,
+
                             [
-                                tournament_id,
-                                newUserId
+                                user.name,
+                                user.pseudo,
+                                user.email,
+                                user.phone,
+                                user.efootball_id,
+                                user.password
                             ],
-                            (err) => {
+
+                            (err, userRes) => {
 
                                 if (err) {
 
                                     console.error(
-                                        `Erreur inscription joueur ${index}:`,
+                                        `Erreur création joueur ${index}:`,
                                         err
                                     );
 
-                                    return insertSinglePlayer(index + 1);
+                                    return insertSinglePlayer(
+                                        index + 1
+                                    );
+
                                 }
 
+                                const newUserId =
+                                    userRes.insertId;
+
+                                // ==========================================
+                                // INSCRIPTION AU TOURNOI
+                                // ==========================================
+
                                 db.query(
+
                                     `
-                                    INSERT INTO payments
+                                    INSERT INTO tournament_players
                                     (
+                                        tournament_id,
                                         player_id,
-                                        tournament_id,
-                                        amount,
-                                        method,
-                                        transaction_id,
-                                        status
+                                        payment_status
                                     )
-                                    VALUES (?, ?, ?, 'TEST_SIMULATION', ?, 'success')
+                                    VALUES (?, ?, 'paid')
                                     `,
+
                                     [
-                                        newUserId,
                                         tournament_id,
-                                        entryFee,
-                                        `SIM_TX_${timestamp}_${index}`
+                                        newUserId
                                     ],
+
                                     (err) => {
 
                                         if (err) {
+
                                             console.error(
-                                                `Erreur paiement ${index}:`,
+                                                `Erreur inscription joueur ${index}:`,
                                                 err
                                             );
+
+                                            return insertSinglePlayer(
+                                                index + 1
+                                            );
+
                                         }
 
-                                        addedCount++;
+                                        // ==========================================
+                                        // CRÉER LE PAIEMENT TEST
+                                        // ==========================================
 
-                                        insertSinglePlayer(index + 1);
+                                        db.query(
+
+                                            `
+                                            INSERT INTO payments
+                                            (
+                                                player_id,
+                                                tournament_id,
+                                                amount,
+                                                method,
+                                                transaction_id,
+                                                status
+                                            )
+                                            VALUES (
+                                                ?,
+                                                ?,
+                                                ?,
+                                                'TEST_SIMULATION',
+                                                ?,
+                                                'success'
+                                            )
+                                            `,
+
+                                            [
+                                                newUserId,
+                                                tournament_id,
+                                                entryFee,
+                                                `SIM_TX_${timestamp}_${currentPlayers + index}`
+                                            ],
+
+                                            (err) => {
+
+                                                if (err) {
+
+                                                    console.error(
+                                                        `Erreur paiement joueur ${index}:`,
+                                                        err
+                                                    );
+
+                                                }
+
+                                                addedCount++;
+
+                                                insertSinglePlayer(
+                                                    index + 1
+                                                );
+
+                                            }
+
+                                        );
+
                                     }
+
                                 );
 
                             }
+
                         );
 
-                    }
-                );
+                    };
 
-            };
+                    insertSinglePlayer(1);
 
-            insertSinglePlayer(1);
+                }
+
+            );
+
         }
+
     );
+
 };
 
 /**
