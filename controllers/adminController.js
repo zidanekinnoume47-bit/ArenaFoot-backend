@@ -566,7 +566,64 @@ exports.createTestPlayers = (req, res) => {
  * GENERATION DU BRACKET : Tirage au sort et création des 8 matchs de 1/8ème de finale (16 joueurs)
  */
 exports.generateBracket = (req, res) => {
-    return matchController.generateMatches(req, res);
+
+    const tournamentId = req.params.id;
+
+    db.query(
+        "SELECT game FROM tournaments WHERE id = ?",
+        [tournamentId],
+        (err, result) => {
+
+            if (err) {
+                console.error(err);
+
+                return res.status(500).json({
+                    message: "Erreur récupération du jeu du tournoi"
+                });
+            }
+
+            if (result.length === 0) {
+
+                return res.status(404).json({
+                    message: "Tournoi introuvable"
+                });
+
+            }
+
+            const game = result[0].game;
+
+            // ==========================================
+            // CALL OF DUTY
+            // ==========================================
+
+            if (game === "call_of_duty") {
+
+                return matchController.generateCallOfDutyMatches(
+                    req,
+                    res
+                );
+
+            }
+
+            // ==========================================
+            // EFOOTBALL
+            // ON GARDE EXACTEMENT L'ANCIEN SYSTÈME
+            // ==========================================
+
+            return matchController.generateMatches(
+                req,
+                res
+            );
+
+        }
+    );
+
+
+
+};
+
+exports.getBracket = (req, res) => {
+    return matchController.getBracket(req, res);
 };
 
 /**

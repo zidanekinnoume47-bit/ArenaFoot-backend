@@ -84,6 +84,12 @@ router.post(
   adminController.generateBracket
 );
 
+router.get(
+  "/tournament/:id/bracket",
+  adminAuth,
+  adminController.getBracket
+);
+
 router.put(
   "/ban/:id",
   adminAuth,

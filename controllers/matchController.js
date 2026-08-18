@@ -34,13 +34,7 @@ const shuffleArray = (array) => {
   return array;
 };
 
-// ==================================
-// Générer les matchs d'un tournoi
-// ==================================
-// ==================================
-// Générer les matchs d'un tournoi
-// ==================================
-// ==================================
+
 // Générer les matchs d'un tournoi
 // eFootball = 16 joueurs
 // Call of Duty = 32 joueurs
