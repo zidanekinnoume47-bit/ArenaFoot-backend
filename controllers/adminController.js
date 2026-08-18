@@ -596,14 +596,14 @@ exports.generateBracket = (req, res) => {
             // CALL OF DUTY
             // ==========================================
 
-            if (game === "call_of_duty") {
+           if (game === "call_of_duty") {
 
-                return matchController.generateCallOfDutyMatches(
-                    req,
-                    res
-                );
+    return matchController.generateCallOfDutyMatches(
+        req.params.id,
+        res
+    );
 
-            }
+}
 
             // ==========================================
             // EFOOTBALL
