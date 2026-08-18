@@ -1675,7 +1675,7 @@ if (match.round === "Demi-finale") {
                         SELECT id, player_one, player_two
                         FROM matches
                         WHERE tournament_id = ?
-                        AND round = 'Match pour la 3e place'
+                        AND round = 'Petite finale'
                         LIMIT 1
                         `,
                         [match.tournament_id],
