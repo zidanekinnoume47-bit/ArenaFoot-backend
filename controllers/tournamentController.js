@@ -49,39 +49,73 @@ exports.getTournament = (req, res) => {
 };
 
 // Inscription tournoi
-exports.joinTournament = (req, res) => {
-    const tournament_id = req.body.tournament_id;
-    const user_id = req.body.user_id || req.body.player_id;
+// ==========================================
+// INSCRIPTION À UN TOURNOI
+// ==========================================
 
-    if(!tournament_id || !user_id){
+exports.joinTournament = (req, res) => {
+
+    // 🔐 Identité récupérée depuis le JWT
+    const user_id = req.user.id;
+
+    const tournament_id = req.body.tournament_id;
+
+    if (!tournament_id) {
         return res.status(400).json({
-            message:"Données incomplètes"
+            message: "Tournoi requis"
         });
     }
+
+    // ==========================================
+    // Récupérer le tournoi
+    // ==========================================
 
     Tournament.getById(
         tournament_id,
         (err, tournament) => {
-            if(err){
+
+            if (err) {
+
+                console.error(
+                    "Erreur récupération tournoi :",
+                    err
+                );
+
                 return res.status(500).json({
-                    message:"Erreur récupération tournoi"
+                    message: "Erreur récupération tournoi"
                 });
             }
 
-            if(!tournament[0]){
+            if (
+                !tournament ||
+                tournament.length === 0
+            ) {
+
                 return res.status(404).json({
-                    message:"Tournoi introuvable"
+                    message: "Tournoi introuvable"
                 });
             }
 
-            if(
-                tournament[0].status === "finished" ||
-                tournament[0].status === "full"
-            ){
+            const currentTournament =
+                tournament[0];
+
+            // ==========================================
+            // Vérifier le statut du tournoi
+            // ==========================================
+
+            if (
+                currentTournament.status === "finished" ||
+                currentTournament.status === "full"
+            ) {
+
                 return res.status(400).json({
-                    message:"Tournoi complet ou terminé"
+                    message: "Tournoi complet ou terminé"
                 });
             }
+
+            // ==========================================
+            // Vérifier si le joueur est déjà inscrit
+            // ==========================================
 
             const payload = {
                 tournament_id,
@@ -89,102 +123,133 @@ exports.joinTournament = (req, res) => {
                 player_id: user_id
             };
 
-            TournamentPlayer.checkPlayer(
+            TournamentPlayer.getPlayer(
                 payload,
-                (err, result) => {
-                    if(err){
-                        return res.status(500).json(err);
-                    }
+                (err, existingPlayer) => {
 
-                    if(result.length > 0){
-                        return res.status(400).json({
-                            message:"Vous êtes déjà inscrit"
+                    if (err) {
+
+                        console.error(
+                            "Erreur vérification inscription :",
+                            err
+                        );
+
+                        return res.status(500).json({
+                            message:
+                                "Erreur vérification inscription"
                         });
                     }
+
+                    if (
+                        existingPlayer &&
+                        existingPlayer.length > 0
+                    ) {
+
+                        const registration =
+                            existingPlayer[0];
+
+                        // Déjà payé
+                        if (
+                            registration.payment_status ===
+                            "paid"
+                        ) {
+
+                            return res.status(400).json({
+                                message:
+                                    "Vous êtes déjà inscrit à ce tournoi."
+                            });
+                        }
+
+                        // Inscription en attente de paiement
+                        return res.status(400).json({
+                            message:
+                                "Vous avez déjà une inscription en attente de paiement."
+                        });
+                    }
+
+                    // ==========================================
+                    // Compter les joueurs PAYÉS
+                    // ==========================================
 
                     TournamentPlayer.countPlayers(
                         tournament_id,
                         (err, count) => {
-                            if(err){
-                                return res.status(500).json(err);
-                            }
 
-                            const total = count[0]?.total || 0;
-                            const limit = tournament[0].players_limit || 16;
+                            if (err) {
 
-                            if(total >= limit){
-                                return res.status(400).json({
-                                    message:"Tournoi complet"
+                                console.error(
+                                    "Erreur comptage joueurs :",
+                                    err
+                                );
+
+                                return res.status(500).json({
+                                    message:
+                                        "Erreur comptage joueurs"
                                 });
                             }
+
+                            const total =
+                                Number(
+                                    count[0]?.total || 0
+                                );
+
+                            const limit =
+                                Number(
+                                    currentTournament.players_limit ||
+                                    16
+                                );
+
+                            // ==========================================
+                            // Tournoi complet
+                            // ==========================================
+
+                            if (total >= limit) {
+
+                                return res.status(400).json({
+                                    message:
+                                        "Tournoi complet"
+                                });
+                            }
+
+                            // ==========================================
+                            // Créer l'inscription en attente
+                            // ==========================================
 
                             TournamentPlayer.join(
                                 payload,
                                 (err, result) => {
+
                                     if (err) {
-                                        console.log("ERREUR JOIN :", err);
+
+                                        console.error(
+                                            "ERREUR JOIN :",
+                                            err
+                                        );
+
                                         return res.status(500).json({
-                                            message: "Erreur inscription",
-                                            error: err.message
+                                            message:
+                                                "Erreur inscription"
                                         });
                                     }
 
-                                    // Vérifier les joueurs payés
-                                    const checkPaid = `
-                                        SELECT COUNT(*) AS total
-                                        FROM tournament_players
-                                        WHERE tournament_id=?
-                                        AND payment_status='paid'
-                                    `;
+                                    return res.json({
+                                        message:
+                                            "Inscription créée. Veuillez effectuer le paiement.",
+                                        tournament_id,
+                                        player_id: user_id
+                                    });
 
-                                    db.query(
-                                        checkPaid,
-                                        [tournament_id],
-                                        (error, paid) => {
-                                            if(error){
-                                                console.log("Erreur vérification paiement :", error);
-                                                return;
-                                            }
+                                }
+                            );
 
-                                           const playersLimit = tournament[0].players_limit || 16;
+                        }
+                    );
 
-if (paid[0].total >= playersLimit) {
-
-    const updateStatus = `
-        UPDATE tournaments
-        SET status='full'
-        WHERE id=?
-    `;
-
-    db.query(
-        updateStatus,
-        [tournament_id],
-        (updateError) => {
-
-            if (updateError) {
-                console.log(
-                    "Erreur changement statut :",
-                    updateError
-                );
-            }
+                }
+            );
 
         }
     );
-}
-                                        }
-                                    );
-
-                                    return res.json({
-                                        message:"Inscription réussie !"
-                                    });
-                                }
-                            ); // fermeture TournamentPlayer.join
-                        }
-                    ); // fermeture TournamentPlayer.countPlayers
-                }
-            ); // fermeture TournamentPlayer.checkPlayer
-        }
-    ); // fermeture Tournament.getById
 };
 
 // Tournois d'un joueur
