@@ -1,68 +1,51 @@
-const express = require("express");
-const router = express.Router();
+const jwt = require("jsonwebtoken");
 
-const tournamentController = require("../controllers/tournamentController");
-const auth = require("../middleware/auth");
-const adminAuth = require("../middleware/adminAuth");
+module.exports = (req, res, next) => {
 
-// ==========================================
-// 🌍 ROUTES PUBLIQUES
-// ==========================================
+    const authHeader = req.headers.authorization;
 
-// Afficher tous les tournois
-router.get(
-    "/",
-    tournamentController.getTournaments
-);
+    if (!authHeader) {
+        return res.status(401).json({
+            message: "Accès refusé"
+        });
+    }
 
-// Détail d'un tournoi
-router.get(
-    "/:id",
-    tournamentController.getTournament
-);
+    const token = authHeader.startsWith("Bearer ")
+        ? authHeader.split(" ")[1]
+        : authHeader;
 
-// Participants d'un tournoi
-router.get(
-    "/:id/players",
-    tournamentController.getTournamentPlayers
-);
+    if (!token) {
+        return res.status(401).json({
+            message: "Token manquant"
+        });
+    }
 
-// Bracket public
-router.get(
-    "/:id/bracket",
-    tournamentController.getBracket
-);
+    try {
 
+        const decoded = jwt.verify(
+            token,
+            process.env.JWT_SECRET
+        );
 
-// ==========================================
-// 🔐 ROUTES UTILISATEUR CONNECTÉ
-// ==========================================
+        if (!decoded.id) {
+            return res.status(401).json({
+                message: "Token invalide"
+            });
+        }
 
-// Inscription à un tournoi
-router.post(
-    "/join",
-    auth,
-    tournamentController.joinTournament
-);
+        req.user = decoded;
 
-// Tournois du joueur connecté
-router.get(
-    "/player/:id",
-    auth,
-    tournamentController.getPlayerTournaments
-);
+        next();
 
+    } catch (error) {
 
-// ==========================================
-// 👑 ROUTES ADMIN
-// ==========================================
+        console.error(
+            "ERREUR AUTH :",
+            error.message
+        );
 
-// Créer un tournoi
-router.post(
-    "/create",
-    adminAuth,
-    tournamentController.createTournament
-);
-
-
-module.exports = router;
+        return res.status(401).json({
+            message: "Token invalide ou expiré"
+        });
+    }
+};
