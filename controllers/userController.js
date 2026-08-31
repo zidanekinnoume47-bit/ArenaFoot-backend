@@ -1083,7 +1083,7 @@ exports.verifyLogin = (req, res) => {
 
             if (
                 !result ||
-                result.length === 0
+                result.length ===0
             ) {
 
                 return res.status(404).json({
