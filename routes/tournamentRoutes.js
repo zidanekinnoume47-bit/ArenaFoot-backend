@@ -1,19 +1,29 @@
 const express = require("express");
 const router = express.Router();
+const adminAuth = require("../middleware/adminAuth");
+const auth = require("../middleware/auth");
 
 const tournamentController = require("../controllers/tournamentController");
 
 // 1. Créer un tournoi
-router.post("/create", tournamentController.createTournament);
+router.post(
+    "/create",
+    adminAuth,
+    tournamentController.createTournament
+);
+router.post(
+    "/join",
+    auth,
+    tournamentController.joinTournament
+);
 
 // 2. Afficher tous les tournois
 router.get("/", tournamentController.getTournaments);
 
-// 3. Inscription à un tournoi
-router.post("/join", tournamentController.joinTournament);
+
 
 // 4. Tournois d'un joueur
-router.get("/player/:id", tournamentController.getPlayerTournaments);
+router.get("/player",auth, tournamentController.getPlayerTournaments);
 
 // 5. Participants d'un tournoi
 router.get("/:id/players", tournamentController.getTournamentPlayers);

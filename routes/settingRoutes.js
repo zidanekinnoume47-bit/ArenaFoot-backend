@@ -5,17 +5,25 @@ const router = express.Router();
 const settingController = require("../controllers/settingController");
 const adminAuth = require("../middleware/adminAuth");
 
-// Lire les paramètres
+// ==========================================
+// 🌍 PARAMÈTRES PUBLICS
+// ==========================================
+
 router.get(
     "/",
     settingController.getSettings
 );
 
-// Modifier les paramètres
+
+// ==========================================
+// 🔒 MODIFICATION RÉSERVÉE À L'ADMIN
+// ==========================================
+
 router.put(
     "/",
     adminAuth,
     settingController.updateSettings
 );
+
 
 module.exports = router;

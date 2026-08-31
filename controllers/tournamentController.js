@@ -4,19 +4,141 @@ const db = require("../config/database");
 
 // Créer un tournoi
 exports.createTournament = (req, res) => {
-    const data = req.body;
 
-    Tournament.create(data, (err, result) => {
-        if(err){
-            return res.status(500).json({
-                message:"Erreur lors de la création du tournoi"
-            });
-        }
+    const {
+        name,
+        game,
+        entry_fee,
+        reward,
+        players_limit,
+        description
+    } = req.body;
 
-        res.json({
-            message:"Tournoi créé avec succès"
+    // ==========================================
+    // 🔐 NOM
+    // ==========================================
+
+    if (
+        typeof name !== "string" ||
+        !name.trim() ||
+        name.length > 100
+    ) {
+        return res.status(400).json({
+            message: "Nom du tournoi invalide"
         });
-    });
+    }
+
+    // ==========================================
+    // 🎮 JEU
+    // ==========================================
+
+    const allowedGames = [
+        "efootball",
+        "call_of_duty"
+    ];
+
+    if (!allowedGames.includes(game)) {
+        return res.status(400).json({
+            message: "Jeu non autorisé"
+        });
+    }
+
+    // ==========================================
+    // 💰 PRIX
+    // ==========================================
+
+    const entryFee = Number(entry_fee);
+    const rewardAmount = Number(reward);
+
+    if (
+        !Number.isFinite(entryFee) ||
+        entryFee < 0
+    ) {
+        return res.status(400).json({
+            message: "Prix d'inscription invalide"
+        });
+    }
+
+    if (
+        !Number.isFinite(rewardAmount) ||
+        rewardAmount < 0
+    ) {
+        return res.status(400).json({
+            message: "Récompense invalide"
+        });
+    }
+
+    // ==========================================
+    // 👥 NOMBRE DE JOUEURS
+    // ==========================================
+
+    const playersLimit = Number(players_limit);
+
+    const expectedLimit =
+        game === "efootball" ? 16 : 32;
+
+    if (playersLimit !== expectedLimit) {
+        return res.status(400).json({
+            message:
+                `Un tournoi ${game === "efootball" ? "eFootball" : "Call of Duty"} nécessite ${expectedLimit} joueurs`
+        });
+    }
+
+    // ==========================================
+    // 📝 DESCRIPTION
+    // ==========================================
+
+    if (
+        description !== undefined &&
+        (
+            typeof description !== "string" ||
+            description.length > 1000
+        )
+    ) {
+        return res.status(400).json({
+            message: "Description invalide"
+        });
+    }
+
+    // ==========================================
+    // 🔒 Données propres
+    // ==========================================
+
+    const cleanData = {
+        name: name.trim(),
+        game,
+        entry_fee: entryFee,
+        reward: rewardAmount,
+        players_limit: playersLimit,
+        description: description
+            ? description.trim()
+            : null
+    };
+
+    Tournament.create(
+        cleanData,
+        (err, result) => {
+
+            if (err) {
+
+                console.error(
+                    "ERREUR CRÉATION TOURNOI :",
+                    err
+                );
+
+                return res.status(500).json({
+                    message:
+                        "Erreur lors de la création du tournoi"
+                });
+            }
+
+            return res.status(201).json({
+                message: "Tournoi créé avec succès",
+                tournament_id: result.insertId
+            });
+
+        }
+    );
 };
 
 // Afficher tous les tournois
@@ -58,11 +180,11 @@ exports.joinTournament = (req, res) => {
     // 🔐 Identité récupérée depuis le JWT
     const user_id = req.user.id;
 
-    const tournament_id = req.body.tournament_id;
+    const tournament_id = Number(req.body.tournament_id);
 
-    if (!tournament_id) {
+    if (!Number.isInteger(tournament_id) || tournament_id <= 0) {
         return res.status(400).json({
-            message: "Tournoi requis"
+            message: "Tournoi invalide"
         });
     }
 
@@ -254,7 +376,8 @@ exports.joinTournament = (req, res) => {
 
 // Tournois d'un joueur
 exports.getPlayerTournaments = (req, res) => {
-    const player_id = req.params.id;
+
+    const player_id = req.user.id;
 
     TournamentPlayer.getPlayerTournaments(
         player_id,

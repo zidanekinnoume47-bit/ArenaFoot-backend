@@ -1352,6 +1352,45 @@ exports.finishMatch = (req, res) => {
 
         const match = result[0];
 
+        if (
+            typeof score !== "string" ||
+            score.length > 20
+        ) {
+            return res.status(400).json({
+                message: "Score invalide"
+            });
+        }
+
+        if (!match.player_one || !match.player_two) {
+            return res.status(400).json({
+                message: "Ce match n'est pas encore prêt"
+            });
+        }
+
+        if (match.status !== "pending") {
+            return res.status(400).json({
+                message: "Ce match n'est pas en cours"
+            });
+        }
+
+
+        if (match.status === "finished" || match.winner !== null) {
+            return res.status(400).json({
+                message: "Ce match est déjà terminé"
+            });
+        }
+
+        const winnerId = Number(winner);
+
+        if (
+            winnerId !== Number(match.player_one) &&
+            winnerId !== Number(match.player_two)
+        ) {
+            return res.status(400).json({
+                message: "Le vainqueur doit être l'un des joueurs du match"
+            });
+        }
+
         // Joueur perdant
         const loser =
             Number(match.player_one) === Number(winner)
@@ -1360,16 +1399,26 @@ exports.finishMatch = (req, res) => {
 
 
         Match.updateWinner(
-            {
-                match_id,
-                winner,
-                score
-            },
-            (err) => {
+        {
+            match_id,
+            winner,
+            score
+        },
+        (err, updateResult) => {
 
-                if (err) {
-                    return res.status(500).json(err);
-                }
+            if (err) {
+                console.error("ERREUR UPDATE MATCH :", err);
+
+                return res.status(500).json({
+                    message: "Erreur lors de la validation du match"
+                });
+            }
+
+            if (updateResult.affectedRows === 0) {
+                return res.status(409).json({
+                    message: "Le match a déjà été traité ou n'est plus valide."
+                });
+            }
 
 
                 // =====================================================

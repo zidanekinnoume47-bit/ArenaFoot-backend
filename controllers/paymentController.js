@@ -98,11 +98,12 @@ exports.createPayment = async (req, res) => {
     console.log("BODY PAYMENT :", req.body);
 
     const data = req.body;
-    const userId = data.user_id || data.player_id;
+    const userId = req.user.id;
+    const tournamentId = Number(data.tournament_id);
 
-    if (!userId || !data.tournament_id) {
+    if (!userId || !Number.isInteger(tournamentId) || tournamentId <= 0) {
         return res.status(400).json({
-            message: "Vous devez avoir un compte ArenaFoot pour participer"
+            message: "Données de paiement invalides"
         });
     }
 

@@ -2,25 +2,25 @@ const db = require("../config/database");
 
 const Match = {
 
-create:(data,callback)=>{
+create: (data, callback) => {
 
-const sql = `
-INSERT INTO matches
-(tournament_id, player_one, player_two, round, position)
-VALUES ?
-`;
+    const sql = `
+        INSERT INTO matches
+        (tournament_id, player_one, player_two, round, position)
+        VALUES (?, ?, ?, ?, ?)
+    `;
 
-db.query(
-sql,
-[
-data.tournament_id,
-data.player_one,
-data.player_two,
-data.round,
-data.position
-],
-callback
-);
+    db.query(
+        sql,
+        [
+            data.tournament_id,
+            data.player_one,
+            data.player_two,
+            data.round,
+            data.position
+        ],
+        callback
+    );
 
 },
 
@@ -120,26 +120,33 @@ callback
 
 
 
-updateWinner:(data,callback)=>{
+updateWinner: (data, callback) => {
 
-const sql = `
-UPDATE matches
-SET
-winner=?,
-score=?,
-status='finished'
-WHERE id=?
-`;
+    const sql = `
+        UPDATE matches
+        SET
+            winner = ?,
+            score = ?,
+            status = 'finished'
+        WHERE id = ?
+        AND status <> 'pending'
+        AND winner IS NULL
+        AND player_one IS NOT NULL
+        AND player_two IS NOT NULL
+        AND (player_one = ? OR player_two = ?)
+    `;
 
-db.query(
-sql,
-[
-data.winner,
-data.score,
-data.match_id
-],
-callback
-);
+    db.query(
+        sql,
+        [
+            data.winner,
+            data.score,
+            data.match_id,
+            data.winner,
+            data.winner
+        ],
+        callback
+    );
 
 }
 
